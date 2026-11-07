@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { doc, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useShop, useUi, useCarts, commit, deviceId } from '../store.jsx'
@@ -22,6 +22,7 @@ export default function Pos() {
   const [picker, setPicker] = useState(null)   // { product, chosen: [] }
   const [zero, setZero] = useState(null)       // sku
   const [priceEdit, setPriceEdit] = useState(null) // line
+  const [qtyEdit, setQtyEdit] = useState(null) // { c, l }
   const [discountOpen, setDiscountOpen] = useState(false)
   const [checkout, setCheckout] = useState(false)
   const [cartOpen, setCartOpen] = useState(false) // 手機版購物車展開
@@ -40,7 +41,7 @@ export default function Pos() {
   const tracks = (sku) => s.productById[sku.productId]?.trackStock !== false
   const avail = (sku) => (tracks(sku) ? (s.stock[sku.id] ?? 0) - reserved(sku.id) : Infinity)
 
-  const updateLines = (fn) => cs.update(cart.id, (c) => ({ ...c, lines: fn(c.lines) }))
+  const updateLines = (fn, cartId = cart.id) => cs.update(cartId, (c) => ({ ...c, lines: fn(c.lines) }))
 
   const addSku = (sku, pre = false) => {
     if (!pre && tracks(sku) && avail(sku) <= 0) { setZero(sku); return }
@@ -56,7 +57,15 @@ export default function Pos() {
     })
   }
 
-  const inc = (line, d) => {
+  // 這一列最多可以到幾件
+  const maxQtyOf = (line) => {
+    if (line.ret) return line.maxQty
+    if (line.pre) return Infinity
+    const sku = s.skuById[line.skuId]
+    return sku && tracks(sku) ? line.qty + Math.max(0, avail(sku)) : Infinity
+  }
+
+  const inc = (c, line, d) => {
     if (d > 0) {
       if (line.ret) { if (line.qty >= line.maxQty) return }
       else if (!line.pre) {
@@ -64,13 +73,24 @@ export default function Pos() {
         if (sku && tracks(sku) && avail(sku) <= 0) { setZero(sku); return }
       }
     }
-    updateLines((lines) => lines.map((l) => (l.key === line.key ? { ...l, qty: Math.max(1, l.qty + d) } : l)))
+    updateLines((lines) => lines.map((l) => (l.key === line.key ? { ...l, qty: Math.max(1, l.qty + d) } : l)), c.id)
   }
 
-  const removeLine = (line) => {
-    const idx = cart.lines.findIndex((l) => l.key === line.key)
-    const cartId = cart.id
-    updateLines((lines) => lines.filter((l) => l.key !== line.key))
+  const setQty = (c, line, n) => {
+    const max = maxQtyOf(line)
+    let q = Math.floor(Number(n) || 0)
+    if (q <= 0) { removeLine(c, line); return }
+    if (q > max) {
+      ui.toast(line.ret ? `最多可退 ${max}` : `庫存只剩 ${max}，已改為 ${max}${s.settings.preorderEnabled ? '；不足的可再點商品改為預定' : ''}`, { kind: 'error', ms: 5000 })
+      q = max
+    }
+    updateLines((lines) => lines.map((l) => (l.key === line.key ? { ...l, qty: q } : l)), c.id)
+  }
+
+  const removeLine = (c, line) => {
+    const idx = c.lines.findIndex((l) => l.key === line.key)
+    const cartId = c.id
+    updateLines((lines) => lines.filter((l) => l.key !== line.key), cartId)
     ui.toast(`已刪除 ${line.name}`, {
       ms: 5000,
       action: { label: '復原', onClick: () => cs.update(cartId, (c) => { const ls = [...c.lines]; ls.splice(Math.min(idx, ls.length), 0, line); return { ...c, lines: ls } }) }
@@ -79,17 +99,40 @@ export default function Pos() {
 
   const t = cartTotals(cart, {})
 
-  // 左右滑動切換客人
-  const touch = useRef(null)
-  const onTouchStart = (e) => { touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }
-  const onTouchEnd = (e) => {
-    if (!touch.current) return
-    const dx = e.changedTouches[0].clientX - touch.current.x
-    const dy = e.changedTouches[0].clientY - touch.current.y
-    touch.current = null
-    if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx)) return
-    if (dx < 0 && cs.active < cs.carts.length - 1) cs.setActive(cs.active + 1)
-    if (dx > 0 && cs.active > 0) cs.setActive(cs.active - 1)
+  // 客人卡片左右滑動（scroll-snap），和上方分頁同步
+  const slider = useRef(null)
+  const scrollTimer = useRef(null)
+  const firstScroll = useRef(true)
+  useEffect(() => {
+    const el = slider.current
+    if (!el || !el.clientWidth) return
+    const cur = Math.round(el.scrollLeft / el.clientWidth)
+    if (cur !== cs.active) el.scrollTo({ left: cs.active * el.clientWidth, behavior: firstScroll.current ? 'auto' : 'smooth' })
+    firstScroll.current = false
+  }, [cs.active, cs.carts.length])
+  // 滑動中依距離縮放卡片，做出卡片切換的動態感
+  const paint = () => {
+    const el = slider.current
+    if (!el || !el.clientWidth) return
+    const pos = el.scrollLeft / el.clientWidth
+    Array.from(el.children).forEach((slide, i) => {
+      const d = Math.min(1, Math.abs(pos - i))
+      const card = slide.firstChild
+      if (!card) return
+      card.style.transform = `scale(${1 - d * 0.08}) rotateY(${(i - pos) * -8}deg)`
+      card.style.opacity = String(1 - d * 0.5)
+    })
+  }
+  useEffect(paint)
+  const onSlide = () => {
+    requestAnimationFrame(paint)
+    clearTimeout(scrollTimer.current)
+    scrollTimer.current = setTimeout(() => {
+      const el = slider.current
+      if (!el || !el.clientWidth) return
+      const i = Math.round(el.scrollLeft / el.clientWidth)
+      if (i !== cs.active && i >= 0 && i < cs.carts.length) cs.setActive(i)
+    }, 90)
   }
 
   if (!s.eventId) return <div className="page"><div className="warn">請先到「管理」建立展覽場次。</div></div>
@@ -145,7 +188,7 @@ export default function Pos() {
         </div>
 
         {/* 購物車 */}
-        <div className={'cart-pane' + (cartOpen ? ' open' : '')} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        <div className={'cart-pane' + (cartOpen ? ' open' : '')}>
           <button className="cart-toggle" onClick={() => setCartOpen(!cartOpen)}>
             🛒 {cart.name}・{t.count} 件・<b>{fmt(t.total)}</b> {cartOpen ? '▼' : '▲'}
           </button>
@@ -160,34 +203,41 @@ export default function Pos() {
             })}
             <button className="add" onClick={() => cs.add()}>＋</button>
           </div>
-          <div className="cart-lines">
-            {cart.refOrderId && <div className="hint">退換貨：退回品項已帶入，可再加入換出的品項。</div>}
-            {cart.lines.map((l) => (
-              <div key={l.key} className={'cart-line' + (l.ret ? ' ret' : '') + (l.pre ? ' pre' : '')}>
-                <div className="cl-name">
-                  {l.ret && <span className="badge red">退回</span>}
-                  {l.pre && <span className="badge blue">預定</span>}
-                  {l.name}
-                  {l.ret && (
-                    <label className="check small">
-                      <input type="checkbox" checked={l.restock} onChange={(e) => updateLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, restock: e.target.checked } : x)))} />
-                      回庫存（取消 = 瑕疵）
-                    </label>
-                  )}
+          <div className="cart-slider" ref={slider} onScroll={onSlide}>
+            {cs.carts.map((c, ci) => (
+              <div key={c.id} className="cart-slide">
+                <div className={'cart-card' + (ci === cs.active ? ' active' : '')}>
+                  <div className="cart-card-head">{c.name}</div>
+                  {c.refOrderId && <div className="hint">退換貨：退回品項已帶入，可再加入換出的品項。</div>}
+                  {c.lines.map((l) => (
+                    <div key={l.key} className={'cart-line' + (l.ret ? ' ret' : '') + (l.pre ? ' pre' : '')}>
+                      <div className="cl-name">
+                        {l.ret && <span className="badge red">退回</span>}
+                        {l.pre && <span className="badge blue">預定</span>}
+                        {l.name}
+                        {l.ret && (
+                          <label className="check small">
+                            <input type="checkbox" checked={l.restock} onChange={(e) => updateLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, restock: e.target.checked } : x)), c.id)} />
+                            回庫存（取消 = 瑕疵）
+                          </label>
+                        )}
+                      </div>
+                      <div className="cl-qty">
+                        <button onClick={() => inc(c, l, -1)}>−</button>
+                        <button className="qty-num" onClick={() => setQtyEdit({ c, l })}>{l.qty}</button>
+                        <button onClick={() => inc(c, l, 1)}>＋</button>
+                      </div>
+                      <button className={'cl-price' + (l.price !== l.listPrice && !l.ret ? ' changed' : '')} disabled={l.ret} onClick={() => setPriceEdit(l)}>
+                        {l.ret ? '-' : ''}{fmt(l.price * l.qty)}
+                        {l.price !== l.listPrice && !l.ret && <small>{l.reason || '特價'}</small>}
+                      </button>
+                      <button className="icon trash" onClick={() => removeLine(c, l)} aria-label="刪除">🗑️</button>
+                    </div>
+                  ))}
+                  {!c.lines.length && <p className="muted center">點左邊商品加入</p>}
                 </div>
-                <div className="cl-qty">
-                  <button onClick={() => inc(l, -1)}>−</button>
-                  <span>{l.qty}</span>
-                  <button onClick={() => inc(l, 1)}>＋</button>
-                </div>
-                <button className={'cl-price' + (l.price !== l.listPrice && !l.ret ? ' changed' : '')} disabled={l.ret} onClick={() => setPriceEdit(l)}>
-                  {l.ret ? '-' : ''}{fmt(l.price * l.qty)}
-                  {l.price !== l.listPrice && !l.ret && <small>{l.reason || '特價'}</small>}
-                </button>
-                <button className="icon trash" onClick={() => removeLine(l)} aria-label="刪除">🗑️</button>
               </div>
             ))}
-            {!cart.lines.length && <p className="muted center">點左邊商品加入</p>}
           </div>
           <div className="cart-foot">
             <div className="row between"><span>小計</span><span>{fmt(t.subtotal)}</span></div>
@@ -221,6 +271,8 @@ export default function Pos() {
           {!s.settings.preorderEnabled && <p className="muted">預定&amp;宅配功能已關閉（可在管理頁開啟）。</p>}
         </Modal>
       )}
+      {qtyEdit && <QtyModal line={qtyEdit.l} max={maxQtyOf(qtyEdit.l)} onClose={() => setQtyEdit(null)}
+        onSave={(n) => { setQty(qtyEdit.c, qtyEdit.l, n); setQtyEdit(null) }} />}
       {priceEdit && <PriceModal line={priceEdit} onClose={() => setPriceEdit(null)}
         onSave={(price, reason) => { updateLines((ls) => ls.map((l) => (l.key === priceEdit.key ? { ...l, price, reason } : l))); setPriceEdit(null) }} />}
       {discountOpen && <DiscountModal cart={cart} subtotal={t.subtotal} onClose={() => setDiscountOpen(false)}
@@ -273,6 +325,25 @@ function OptionPicker({ picker, setPicker, skus, avail, onPick }) {
           )
         })}
       </div>
+    </Modal>
+  )
+}
+
+function QtyModal({ line, max, onClose, onSave }) {
+  const [v, setV] = useState(String(line.qty))
+  return (
+    <Modal title={`數量：${line.name}`} onClose={onClose}
+      footer={<><button onClick={onClose}>取消</button><button className="primary" onClick={() => onSave(v)}>確定</button></>}>
+      <label>{line.ret ? `退回數量（最多 ${max}）` : max === Infinity ? '數量' : `數量（目前最多 ${max}）`}
+        <input className="num big" inputMode="numeric" autoFocus value={v}
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => setV(e.target.value.replace(/[^\d]/g, ''))}
+          onKeyDown={(e) => e.key === 'Enter' && onSave(v)} />
+      </label>
+      <div className="chips">
+        {[1, 2, 3, 5, 10, 20].map((n) => <button key={n} className="chip" onClick={() => setV(String(n))}>{n}</button>)}
+      </div>
+      <p className="muted">輸入 0 會刪除這一項。</p>
     </Modal>
   )
 }

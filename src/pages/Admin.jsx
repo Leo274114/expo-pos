@@ -29,6 +29,27 @@ export default function Admin() {
   )
 }
 
+// 上下移動順序：把清單重新編號後寫回 order
+function reorder(shopPath, coll, list, item, dir) {
+  const i = list.findIndex((x) => x.id === item.id)
+  const j = i + dir
+  if (i < 0 || j < 0 || j >= list.length) return
+  const next = [...list]
+  ;[next[i], next[j]] = [next[j], next[i]]
+  const b = writeBatch(db)
+  next.forEach((x, k) => { if (x.order !== (k + 1) * 10) b.set(doc(db, shopPath, coll, x.id), { order: (k + 1) * 10 }, { merge: true }) })
+  commit(b)
+}
+
+function MoveBtns({ onUp, onDown, first, last }) {
+  return (
+    <span className="move" onClick={(e) => e.stopPropagation()}>
+      <button className="mv" disabled={first} onClick={onUp} aria-label="上移">▲</button>
+      <button className="mv" disabled={last} onClick={onDown} aria-label="下移">▼</button>
+    </span>
+  )
+}
+
 // ---------------- 商品與價格 ----------------
 function ProductsTab() {
   const s = useShop()
@@ -99,8 +120,10 @@ function ProductsTab() {
         <section key={cat}>
           <h3 className="cat row between">{cat}<button className="small-btn" onClick={() => setAdding(cat)}>＋ 新增到{cat}</button></h3>
           {!ps.length && <p className="muted">{cat === '周邊產品' ? '自由新增周邊產品，例如杯子、濾杯、帆布袋。' : '此類別沒有商品'}</p>}
-          {ps.map((p) => (
-            <ProductCard key={p.id} p={p} open={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)} />
+          {ps.map((p, i) => (
+            <ProductCard key={p.id} p={p} open={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)}
+              move={<MoveBtns first={i === 0} last={i === ps.length - 1}
+                onUp={() => reorder(s.shopPath, 'products', ps, p, -1)} onDown={() => reorder(s.shopPath, 'products', ps, p, 1)} />} />
           ))}
         </section>
       ))}
@@ -165,7 +188,7 @@ function ProductForm({ product, onClose, initialCategory = '' }) {
   )
 }
 
-function ProductCard({ p, open, onToggle }) {
+function ProductCard({ p, open, onToggle, move }) {
   const s = useShop()
   const [edit, setEdit] = useState(false)
   const skus = s.skus.filter((k) => k.productId === p.id)
@@ -210,7 +233,7 @@ function ProductCard({ p, open, onToggle }) {
   return (
     <div className={'card product' + (p.active === false ? ' off' : '')}>
       <div className="row between" onClick={onToggle} style={{ cursor: 'pointer' }}>
-        <div><b>{p.name}</b> <span className="muted">｜{p.unit}｜{skus.length} 個組合{p.trackStock === false ? '｜不計庫存' : ''}</span></div>
+        <div className="row gap">{move}<b>{p.name}</b> <span className="muted">｜{p.unit}｜{skus.length} 個組合{p.trackStock === false ? '｜不計庫存' : ''}</span></div>
         <span>{open ? '▲' : '▼'}</span>
       </div>
       {open && (
@@ -254,11 +277,13 @@ function SkuTable({ product, skus }) {
     <div className="table-wrap">
       <table className="sku-table">
         <thead>
-          <tr><th>組合</th><th>定價</th><th>活動價</th>{product.trackStock !== false && <><th>初始庫存</th><th>目前</th></>}<th>啟用</th><th></th></tr>
+          <tr><th></th><th>組合</th><th>定價</th><th>活動價</th>{product.trackStock !== false && <><th>初始庫存</th><th>目前</th></>}<th>啟用</th><th></th></tr>
         </thead>
         <tbody>
-          {skus.map((k) => (
+          {skus.map((k, i) => (
             <tr key={k.id} className={k.active === false ? 'off' : ''}>
+              <td><MoveBtns first={i === 0} last={i === skus.length - 1}
+                onUp={() => reorder(s.shopPath, 'skus', skus, k, -1)} onDown={() => reorder(s.shopPath, 'skus', skus, k, 1)} /></td>
               <td>{(k.opts || []).join('・') || product.name}</td>
               <td><NumCell value={k.price} onSave={(v) => setSku(k.id, { price: Number(v) || 0 })} /></td>
               <td><NumCell value={k.promoPrice ?? ''} placeholder="無" onSave={(v) => setSku(k.id, { promoPrice: v === '' ? null : Number(v) })} /></td>
