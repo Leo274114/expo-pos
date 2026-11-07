@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    // 每位使用者只能讀寫自己的攤位（攤位 ID = 自己的 uid）
+    match /shops/{shopId} {
+      allow read, write: if request.auth != null && request.auth.uid == shopId;
+      allow read: if isAdmin();
+      match /{path=**} {
+        allow read, write: if request.auth != null && request.auth.uid == shopId;
+      }
+      // 系統管理者（LEO）可讀銷售資料，但讀不到宅配收件資料
+      match /events/{eventId}/{coll}/{docId} {
+        allow read: if isAdmin() && coll != 'shipping';
+      }
+      match /{coll}/{docId} {
+        allow read: if isAdmin();
+      }
+    }
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
