@@ -7,6 +7,7 @@ import {
   lowStockCrossings, PAY_TYPE_LABEL, GIFT_TO
 } from '../lib/calc.js'
 import Modal from '../components/Modal.jsx'
+import { sortCats } from '../lib/template.js'
 
 let lineSeq = 0
 const lineKey = () => Date.now().toString(36) + '-' + lineSeq++
@@ -30,7 +31,7 @@ export default function Pos() {
     [s.skus, s.productById]
   )
   const products = s.products.filter((p) => p.active !== false && activeSkus.some((k) => k.productId === p.id))
-  const cats = [...new Set(products.map((p) => p.category || '未分類'))]
+  const cats = sortCats([...new Set(products.map((p) => p.category || '未分類'))])
   const curCat = cats.includes(cat) ? cat : cats[0]
 
   // 所有暫存單中已佔用的數量（現貨）

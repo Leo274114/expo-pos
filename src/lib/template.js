@@ -4,18 +4,27 @@ export const TEMPLATE_LISTS = [
   { key: 'process', name: '處理法', values: ['水洗', '蜜處理', '日曬'] },
   { key: 'weight', name: '重量', values: ['1/4磅', '1/2磅'] },
   { key: 'pack', name: '包裝', values: ['單包', '一盒'] },
-  { key: 'tea', name: '茶種', values: ['烏龍', '金萱', '紅茶'] }
+  { key: 'tea', name: '茶種', values: ['烏龍', '金萱', '紅茶'] },
+  { key: 'native', name: '原生山茶', values: ['白茶', '紅茶'] }
 ]
+
+// 類別顯示順序；「周邊產品」預設是空的，讓攤主自由新增
+export const CATEGORY_ORDER = ['咖啡豆', '濾掛', '茶', '咖啡周邊茶', '其他', '周邊產品', '現場飲品']
+export const sortCats = (cats) => [...cats].sort((a, b) => {
+  const i = CATEGORY_ORDER.indexOf(a), j = CATEGORY_ORDER.indexOf(b)
+  return (i < 0 ? 99 : i) - (j < 0 ? 99 : j) || a.localeCompare(b)
+})
 
 export const TEMPLATE_PRODUCTS = [
   { name: '咖啡豆', category: '咖啡豆', unit: '包', levels: ['variety', 'process', 'weight'], trackStock: true },
   { name: '濾掛', category: '濾掛', unit: '包', levels: ['process', 'pack'], trackStock: true },
-  { name: '茶', category: '茶', unit: '包', levels: ['tea'], trackStock: true },
-  { name: '咖啡花', category: '咖啡周邊茶', unit: '包', levels: [], trackStock: true },
-  { name: '咖啡果皮茶', category: '咖啡周邊茶', unit: '包', levels: [], trackStock: true },
-  { name: '咖啡葉茶', category: '咖啡周邊茶', unit: '包', levels: [], trackStock: true },
-  { name: '苦茶油', category: '其他', unit: '瓶', levels: [], trackStock: true },
-  { name: '蜂蜜', category: '其他', unit: '瓶', levels: [], trackStock: true },
+  { name: '茶', category: '茶', unit: '包', levels: ['tea', 'weight'], trackStock: true },
+  { name: '原生山茶', category: '茶', unit: '包', levels: ['native', 'weight'], trackStock: true },
+  { name: '咖啡花', category: '咖啡周邊茶', unit: '包', levels: ['weight'], trackStock: true },
+  { name: '咖啡果皮茶', category: '咖啡周邊茶', unit: '包', levels: ['weight'], trackStock: true },
+  { name: '咖啡葉茶', category: '咖啡周邊茶', unit: '包', levels: ['weight'], trackStock: true },
+  { name: '苦茶油', category: '其他', unit: '瓶', levels: ['weight'], trackStock: true },
+  { name: '蜂蜜', category: '其他', unit: '瓶', levels: ['weight'], trackStock: true },
   { name: '手沖咖啡', category: '現場飲品', unit: '杯', levels: [], trackStock: false }
 ]
 

@@ -3,7 +3,7 @@ import { collection, getDocs, doc, writeBatch } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '../firebase.js'
 import { useShop, useUi, commit, deviceId } from '../store.jsx'
-import { TEMPLATE_LISTS, TEMPLATE_PRODUCTS, ADJUST_REASONS } from '../lib/template.js'
+import { TEMPLATE_LISTS, TEMPLATE_PRODUCTS, ADJUST_REASONS, CATEGORY_ORDER, sortCats } from '../lib/template.js'
 import { preIndex, PAY_TYPE_LABEL, skuLabel, today, dayOf, timeOf } from '../lib/calc.js'
 import { exportEventExcel } from '../lib/excel.js'
 import Modal from '../components/Modal.jsx'
@@ -33,7 +33,7 @@ export default function Admin() {
 function ProductsTab() {
   const s = useShop()
   const { toast } = useUi()
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(null) // 預設類別
   const [open, setOpen] = useState(null)
 
   const seedTemplate = () => {
@@ -55,50 +55,88 @@ function ProductsTab() {
     toast('已載入內建範本，請設定組合與價格')
   }
 
+  // 開賣前用：清空所有商品、組合、選項清單與初始庫存，再重新載入範本
+  const resetAll = async () => {
+    if (prompt('將刪除所有商品、組合、選項清單與目前場次的初始庫存（已完成的銷售單不受影響），並重新載入內建範本。\n確定請輸入：重設') !== '重設') return
+    const refs = [
+      ...s.products.map((p) => doc(db, s.shopPath, 'products', p.id)),
+      ...s.skus.map((k) => doc(db, s.shopPath, 'skus', k.id)),
+      ...s.optionLists.map((l) => doc(db, s.shopPath, 'optionLists', l.id)),
+      ...(s.eventPath ? Object.keys(s.stockInit).map((id) => doc(db, s.eventPath, 'stock', id)) : [])
+    ]
+    for (let i = 0; i < refs.length; i += 400) {
+      const b = writeBatch(db)
+      refs.slice(i, i + 400).forEach((r) => b.delete(r))
+      await b.commit()
+    }
+    const b = writeBatch(db)
+    TEMPLATE_LISTS.forEach((l, i) => b.set(doc(db, s.shopPath, 'optionLists', l.key), { name: l.name, values: l.values, disabled: [], order: i }))
+    TEMPLATE_PRODUCTS.forEach((p, i) => {
+      const pid = s.newId(`${s.shopPath}/products`)
+      b.set(doc(db, s.shopPath, 'products', pid), { ...p, active: true, order: 100 + i })
+      if (!p.levels.length) b.set(doc(db, s.shopPath, 'skus', s.newId(`${s.shopPath}/skus`)), { productId: pid, opts: [], price: 0, promoPrice: null, active: true, order: 100 + i })
+    })
+    await b.commit()
+    toast('已重設為內建範本')
+  }
+
   const grouped = useMemo(() => {
     const g = {}
+    if (s.products.length) for (const c of CATEGORY_ORDER) g[c] = []
     for (const p of s.products) (g[p.category || '未分類'] ||= []).push(p)
-    return g
+    return sortCats(Object.keys(g)).map((c) => [c, g[c]])
   }, [s.products])
 
   return (
     <div>
       {!s.eventId && <div className="warn">尚未選擇展覽場次，請先到「展覽場次」建立並設為目前場次，才能填初始庫存。</div>}
       <div className="row gap">
-        <button className="primary" onClick={() => setAdding(true)}>＋ 新增商品</button>
+        <button className="primary" onClick={() => setAdding('')}>＋ 新增商品</button>
         <button onClick={seedTemplate}>載入內建範本</button>
+        {s.products.length > 0 && <button className="danger-outline" onClick={resetAll}>重設為內建範本</button>}
       </div>
-      {Object.entries(grouped).map(([cat, ps]) => (
+      {grouped.map(([cat, ps]) => (
         <section key={cat}>
-          <h3 className="cat">{cat}</h3>
+          <h3 className="cat row between">{cat}<button className="small-btn" onClick={() => setAdding(cat)}>＋ 新增到{cat}</button></h3>
+          {!ps.length && <p className="muted">{cat === '周邊產品' ? '自由新增周邊產品，例如杯子、濾杯、帆布袋。' : '此類別沒有商品'}</p>}
           {ps.map((p) => (
             <ProductCard key={p.id} p={p} open={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)} />
           ))}
         </section>
       ))}
       {!s.products.length && <p className="muted">還沒有商品。可以先「載入內建範本」，再修改。</p>}
-      {adding && <ProductForm onClose={() => setAdding(false)} />}
+      {adding !== null && <ProductForm initialCategory={adding} onClose={() => setAdding(null)} />}
     </div>
   )
 }
 
-function ProductForm({ product, onClose }) {
+function ProductForm({ product, onClose, initialCategory = '' }) {
   const s = useShop()
-  const [f, setF] = useState(product || { name: '', category: '', unit: '包', levels: [], trackStock: true, active: true })
-  const hasSkus = product && s.skus.some((k) => k.productId === product.id && (k.opts || []).length)
-  const cats = [...new Set([...s.products.map((p) => p.category), ...TEMPLATE_PRODUCTS.map((p) => p.category)])].filter(Boolean)
+  const [f, setF] = useState(product || { name: '', category: initialCategory, unit: initialCategory === '周邊產品' ? '個' : '包', levels: [], trackStock: true, active: true })
+  const mySkus = product ? s.skus.filter((k) => k.productId === product.id) : []
+  const hasCombos = mySkus.some((k) => (k.opts || []).length)
+  const cats = sortCats([...new Set([...s.products.map((p) => p.category), ...CATEGORY_ORDER])].filter(Boolean))
+  const levelsNow = f.levels.filter(Boolean)
+  const levelsChanged = product && levelsNow.join('|') !== (product.levels || []).filter(Boolean).join('|')
   const save = () => {
     if (!f.name.trim()) return
+    if (levelsChanged && hasCombos && !confirm(`修改選項層會刪除「${product.name}」現有的 ${mySkus.length} 個組合（含價格與初始庫存），已完成的銷售單不受影響。確定？`)) return
     const b = writeBatch(db)
-    const levels = f.levels.filter(Boolean)
+    const levels = levelsNow
+    const pid = product ? product.id : s.newId(`${s.shopPath}/products`)
     if (product) {
-      b.set(doc(db, s.shopPath, 'products', product.id), { ...f, levels }, { merge: true })
-    } else {
-      const pid = s.newId(`${s.shopPath}/products`)
-      b.set(doc(db, s.shopPath, 'products', pid), { ...f, levels, order: Date.now() })
-      if (!levels.length) {
-        b.set(doc(db, s.shopPath, 'skus', s.newId(`${s.shopPath}/skus`)), { productId: pid, opts: [], price: 0, promoPrice: null, active: true, order: Date.now() })
+      b.set(doc(db, s.shopPath, 'products', pid), { ...f, levels }, { merge: true })
+      if (levelsChanged) {
+        mySkus.forEach((k) => {
+          b.delete(doc(db, s.shopPath, 'skus', k.id))
+          if (s.eventPath) b.delete(doc(db, s.eventPath, 'stock', k.id))
+        })
       }
+    } else {
+      b.set(doc(db, s.shopPath, 'products', pid), { ...f, levels, order: Date.now() })
+    }
+    if (!levels.length && (!product || levelsChanged)) {
+      b.set(doc(db, s.shopPath, 'skus', s.newId(`${s.shopPath}/skus`)), { productId: pid, opts: [], price: 0, promoPrice: null, active: true, order: Date.now() })
     }
     commit(b)
     onClose()
@@ -112,8 +150,9 @@ function ProductForm({ product, onClose }) {
       <datalist id="cats">{cats.map((c) => <option key={c} value={c} />)}</datalist>
       <label>單位<input value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })} placeholder="包、盒、瓶、杯" /></label>
       <label className="check"><input type="checkbox" checked={f.trackStock} onChange={(e) => setF({ ...f, trackStock: e.target.checked })} />計算庫存（現場飲品可取消）</label>
-      <fieldset disabled={hasSkus}>
-        <legend>選項層（最多三層）{hasSkus && '—已有組合，無法修改'}</legend>
+      <fieldset>
+        <legend>選項層（最多三層）</legend>
+        {levelsChanged && mySkus.length > 0 && <p className="warn">修改選項層會刪除現有的 {mySkus.length} 個組合，儲存後請重新產生組合並填價格。</p>}
         {[0, 1, 2].map((i) => (
           <select key={i} value={f.levels[i] || ''} onChange={(e) => setLevel(i, e.target.value)}>
             <option value="">— 第 {i + 1} 層：不使用 —</option>
