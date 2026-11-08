@@ -36,7 +36,7 @@ export default function Cash() {
 
   return (
     <div className="page">
-      <div className="row gap"><DaySelect event={s.event} value={day} onChange={setDay} /></div>
+      <div className="row gap toolbar"><DaySelect event={s.event} value={day} onChange={setDay} /></div>
       {s.settings.cashCount ? (
         <div className="grid2">
           <CountForm key={'o' + day + (open?.ts || '')} title="開店零用金" data={open} denoms={denomsFor(s.settings)} onSave={(c) => saveCount('open', c)} />

@@ -26,7 +26,7 @@ export default function Orders() {
 
   return (
     <div className="page">
-      <div className="row gap wrap">
+      <div className="row gap wrap toolbar">
         <DaySelect event={s.event} value={day} onChange={setDay} />
         <select value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="all">全部</option>
@@ -114,7 +114,7 @@ function ReturnModal({ o, returned, no, onClose }) {
   const go = () => {
     const lines = items.map((it, i) => qty[i] > 0 && {
       key: 'r' + i + Date.now(), skuId: it.skuId, name: it.name, category: it.category, qty: qty[i], maxQty: left[i],
-      price: refundUnit(o, it), listPrice: it.listPrice, ret: true, restock: restock[i]
+      price: refundUnit(o, it), listPrice: it.listPrice, ret: true, restock: restock[i], ...(it.components ? { components: it.components } : {})
     }).filter(Boolean)
     if (!lines.length) return
     cs.add({ name: `退換#${no}`, lines, refOrderId: o.id })

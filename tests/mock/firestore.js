@@ -57,3 +57,5 @@ export function writeBatch() {
 }
 export const setDoc = async (ref, val, opts) => apply({ kind: 'set', ref, val, opts })
 export const getDocs = async (ref) => colSnap(ref.path)
+
+export const getDoc = async (ref) => docSnap(ref.path)

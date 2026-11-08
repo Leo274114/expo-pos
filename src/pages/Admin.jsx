@@ -3,18 +3,21 @@ import { collection, getDocs, doc, writeBatch } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '../firebase.js'
 import { useShop, useUi, commit, deviceId } from '../store.jsx'
-import { TEMPLATE_LISTS, TEMPLATE_PRODUCTS, ADJUST_REASONS, CATEGORY_ORDER, sortCats } from '../lib/template.js'
-import { preIndex, PAY_TYPE_LABEL, skuLabel, today, dayOf, timeOf } from '../lib/calc.js'
+import { TEMPLATE_LISTS, TEMPLATE_PRODUCTS, ADJUST_REASONS, CATEGORY_ORDER, CATEGORY_HINT, sortCats, THEME_PRESETS, textOn } from '../lib/template.js'
+import { preIndex, componentAvail, fmt, PAY_TYPE_LABEL, skuLabel, today, dayOf, timeOf } from '../lib/calc.js'
 import { exportEventExcel } from '../lib/excel.js'
 import Modal from '../components/Modal.jsx'
+import Icon from '../components/Icon.jsx'
+import { VERSION, CHANGELOG } from '../version.js'
+import { aliasesToText, textToAliases } from '../lib/voice.js'
 
-const TABS = ['商品與價格', '選項清單', '展覽場次', '庫存調整', '功能設定', '資料下載']
+const TABS = ['商品與價格', '選項清單', '展覽場次', '庫存調整', '功能設定', '資料下載', `版本 ${VERSION}`]
 
 export default function Admin() {
   const [tab, setTab] = useState(0)
   return (
     <div className="page admin">
-      <div className="tabs">
+      <div className="tabs toolbar">
         {TABS.map((t, i) => (
           <button key={t} className={i === tab ? 'on' : ''} onClick={() => setTab(i)}>{t}</button>
         ))}
@@ -25,6 +28,7 @@ export default function Admin() {
       {tab === 3 && <AdjustTab />}
       {tab === 4 && <SettingsTab />}
       {tab === 5 && <DataTab />}
+      {tab === 6 && <VersionTab />}
     </div>
   )
 }
@@ -119,7 +123,7 @@ function ProductsTab() {
       {grouped.map(([cat, ps]) => (
         <section key={cat}>
           <h3 className="cat row between">{cat}<button className="small-btn" onClick={() => setAdding(cat)}>＋ 新增到{cat}</button></h3>
-          {!ps.length && <p className="muted">{cat === '周邊產品' ? '自由新增周邊產品，例如杯子、濾杯、帆布袋。' : '此類別沒有商品'}</p>}
+          {!ps.length && <p className="muted">{CATEGORY_HINT[cat] || '此類別沒有商品'}</p>}
           {ps.map((p, i) => (
             <ProductCard key={p.id} p={p} open={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)}
               move={<MoveBtns first={i === 0} last={i === ps.length - 1}
@@ -135,7 +139,7 @@ function ProductsTab() {
 
 function ProductForm({ product, onClose, initialCategory = '' }) {
   const s = useShop()
-  const [f, setF] = useState(product || { name: '', category: initialCategory, unit: initialCategory === '周邊產品' ? '個' : '包', levels: [], trackStock: true, active: true })
+  const [f, setF] = useState(product || { name: '', category: initialCategory, unit: initialCategory === '周邊產品' ? '個' : initialCategory === '套裝組合' ? '組' : '包', levels: [], trackStock: true, active: true })
   const mySkus = product ? s.skus.filter((k) => k.productId === product.id) : []
   const hasCombos = mySkus.some((k) => (k.opts || []).length)
   const cats = sortCats([...new Set([...s.products.map((p) => p.category), ...CATEGORY_ORDER])].filter(Boolean))
@@ -259,6 +263,7 @@ function ProductCard({ p, open, onToggle, move }) {
               <button className="primary" disabled={!combos().length} onClick={generate}>產生 {combos().length} 個組合（已存在的會略過）</button>
             </div>
           )}
+          {(p.levels || []).includes('pack') && <p className="hint">散包和盒裝共用庫存：在「一盒」那一列按「組成」，選同處理法的「單包」× 每盒包數。之後只要填單包的庫存。</p>}
           <SkuTable product={p} skus={skus} />
         </div>
       )}
@@ -269,37 +274,101 @@ function ProductCard({ p, open, onToggle, move }) {
 
 function SkuTable({ product, skus }) {
   const s = useShop()
+  const [compFor, setCompFor] = useState(null)
   const setSku = (id, patch) => commit(writeBatch(db).set(doc(db, s.shopPath, 'skus', id), patch, { merge: true }))
   const setInit = (id, v) => s.eventPath && commit(writeBatch(db).set(doc(db, s.eventPath, 'stock', id), { initial: Number(v) || 0 }, { merge: true }))
   const del = (k) => { if (confirm('刪除這個組合？')) commit(writeBatch(db).delete(doc(db, s.shopPath, 'skus', k.id))) }
+  const tracked = (id) => { const k = s.skuById[id]; return !!k && s.productById[k.productId]?.trackStock !== false }
+  const showStock = product.trackStock !== false
   if (!skus.length) return <p className="muted">還沒有組合。</p>
   return (
     <div className="table-wrap">
       <table className="sku-table">
         <thead>
-          <tr><th></th><th>組合</th><th>定價</th><th>活動價</th>{product.trackStock !== false && <><th>初始庫存</th><th>目前</th></>}<th>啟用</th><th></th></tr>
+          <tr><th></th><th>組合</th><th>定價</th><th>活動價</th>{showStock && <><th>初始庫存</th><th>目前</th></>}<th>組成</th><th>啟用</th><th></th></tr>
         </thead>
         <tbody>
-          {skus.map((k, i) => (
-            <tr key={k.id} className={k.active === false ? 'off' : ''}>
-              <td><MoveBtns first={i === 0} last={i === skus.length - 1}
-                onUp={() => reorder(s.shopPath, 'skus', skus, k, -1)} onDown={() => reorder(s.shopPath, 'skus', skus, k, 1)} /></td>
-              <td>{(k.opts || []).join('・') || product.name}</td>
-              <td><NumCell value={k.price} onSave={(v) => setSku(k.id, { price: Number(v) || 0 })} /></td>
-              <td><NumCell value={k.promoPrice ?? ''} placeholder="無" onSave={(v) => setSku(k.id, { promoPrice: v === '' ? null : Number(v) })} /></td>
-              {product.trackStock !== false && (
-                <>
-                  <td><NumCell value={s.eventId ? (s.stockInit[k.id]?.initial ?? '') : ''} onSave={(v) => setInit(k.id, v)} disabled={!s.eventId} /></td>
-                  <td className={(s.stock[k.id] ?? 0) <= 0 ? 'neg' : ''}>{s.stock[k.id] ?? 0}</td>
-                </>
-              )}
-              <td><input type="checkbox" checked={k.active !== false} onChange={(e) => setSku(k.id, { active: e.target.checked })} /></td>
-              <td><button className="icon" onClick={() => del(k)}>🗑️</button></td>
-            </tr>
-          ))}
+          {skus.map((k, i) => {
+            const comps = k.components || []
+            const canMake = comps.length ? componentAvail(comps, (id) => (tracked(id) ? s.stock[id] ?? 0 : Infinity)) : null
+            return (
+              <tr key={k.id} className={k.active === false ? 'off' : ''}>
+                <td><MoveBtns first={i === 0} last={i === skus.length - 1}
+                  onUp={() => reorder(s.shopPath, 'skus', skus, k, -1)} onDown={() => reorder(s.shopPath, 'skus', skus, k, 1)} /></td>
+                <td>{(k.opts || []).join('・') || product.name}</td>
+                <td><NumCell value={k.price} onSave={(v) => setSku(k.id, { price: Number(v) || 0 })} /></td>
+                <td><NumCell value={k.promoPrice ?? ''} placeholder="無" onSave={(v) => setSku(k.id, { promoPrice: v === '' ? null : Number(v) })} /></td>
+                {showStock && (comps.length ? (
+                  <>
+                    <td className="muted small">扣組成的庫存</td>
+                    <td className={canMake <= 0 ? 'neg' : ''}>{canMake === Infinity ? '—' : `可組 ${canMake}`}</td>
+                  </>
+                ) : (
+                  <>
+                    <td><NumCell value={s.eventId ? (s.stockInit[k.id]?.initial ?? '') : ''} onSave={(v) => setInit(k.id, v)} disabled={!s.eventId} /></td>
+                    <td className={(s.stock[k.id] ?? 0) <= 0 ? 'neg' : ''}>{s.stock[k.id] ?? 0}</td>
+                  </>
+                ))}
+                <td>
+                  <button className="small-btn" onClick={() => setCompFor(k)}>
+                    {comps.length ? comps.map((c) => `${s.labelOf(c.skuId).split('・').slice(-2).join('・')}×${c.qty}`).join('＋') : '設定'}
+                  </button>
+                </td>
+                <td><Switch checked={k.active !== false} onChange={(v) => setSku(k.id, { active: v })} /></td>
+                <td><button className="icon" onClick={() => del(k)} aria-label="刪除"><Icon name="trash" size={20} /></button></td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
+      {compFor && <ComponentsModal sku={compFor} product={product} onClose={() => setCompFor(null)}
+        onSave={(components) => { setSku(compFor.id, { components }); setCompFor(null) }} />}
     </div>
+  )
+}
+
+export function Switch({ checked, onChange, label }) {
+  return (
+    <label className="switch" title={label}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span aria-hidden="true" />
+      {label && <em>{label}</em>}
+    </label>
+  )
+}
+
+// 組成：套裝（A+B+C）或盒裝（＝單包×10），賣出時扣組成的庫存
+function ComponentsModal({ sku, product, onClose, onSave }) {
+  const s = useShop()
+  const [rows, setRows] = useState(() => (sku.components || []).map((c) => ({ ...c })))
+  const options = s.skus.filter((k) => k.id !== sku.id && !(k.components || []).length)
+    .map((k) => ({ k, label: s.labelOf(k.id) }))
+  const sum = rows.reduce((a, r) => a + (Number(s.skuById[r.skuId]?.price) || 0) * (Number(r.qty) || 0), 0)
+  const valid = rows.filter((r) => r.skuId && Number(r.qty) > 0)
+  return (
+    <Modal title={`組成：${s.labelOf(sku.id)}`} wide onClose={onClose}
+      footer={<>
+        {(sku.components || []).length > 0 && <button className="danger-outline" onClick={() => onSave([])}>取消組成（改回自己的庫存）</button>}
+        <button onClick={onClose}>取消</button>
+        <button className="primary" onClick={() => onSave(valid.map((r) => ({ skuId: r.skuId, qty: Number(r.qty) })))}>儲存</button>
+      </>}>
+      <p className="muted small">賣出這個品項時，改扣下面這些品項的庫存。例：套裝＝A×1＋B×1＋C×1；濾掛一盒＝濾掛單包×10（散包與盒裝共用庫存）。</p>
+      {rows.map((r, i) => (
+        <div key={i} className="comp-row">
+          <select value={r.skuId || ''} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, skuId: e.target.value } : x)))}>
+            <option value="">— 選擇品項 —</option>
+            {options.map(({ k, label }) => <option key={k.id} value={k.id}>{label}</option>)}
+          </select>
+          <span>×</span>
+          <input className="num" inputMode="numeric" value={r.qty} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, qty: e.target.value.replace(/[^\d]/g, '') } : x)))} />
+          <button className="icon" onClick={() => setRows(rows.filter((_, j) => j !== i))} aria-label="移除"><Icon name="close" size={18} /></button>
+        </div>
+      ))}
+      <button onClick={() => setRows([...rows, { skuId: '', qty: 1 }])}><Icon name="plus" size={18} />加一項</button>
+      {valid.length > 0 && (
+        <p className="muted">內含品項定價合計 {fmt(sum)}{Number(sku.price) > 0 && sum > Number(sku.price) ? `，套裝價 ${fmt(sku.price)}，客人省 ${fmt(sum - sku.price)}` : ''}</p>
+      )}
+    </Modal>
   )
 }
 
@@ -504,7 +573,7 @@ function SettingsTab() {
   const st = s.settings
   const [name, setName] = useState(s.shop?.name || '')
   const T = ({ k, children }) => (
-    <label className="check"><input type="checkbox" checked={!!st[k]} onChange={(e) => s.saveSettings({ [k]: e.target.checked })} />{children}</label>
+    <div className="setting-row"><span>{children}</span><Switch checked={!!st[k]} onChange={(v) => s.saveSettings({ [k]: v })} /></div>
   )
   const payTypes = st.prePayTypes || {}
   return (
@@ -513,13 +582,28 @@ function SettingsTab() {
         <input value={name} onChange={(e) => setName(e.target.value)}
           onBlur={() => commit(writeBatch(db).set(doc(db, s.shopPath), { name }, { merge: true }))} />
       </label>
+      <h4>畫面上方顏色</h4>
+      <div className="theme-row">
+        {THEME_PRESETS.map((x) => (
+          <button key={x.color} className={'theme-swatch' + ((st.themeColor || '#183d2e').toLowerCase() === x.color.toLowerCase() ? ' on' : '')}
+            onClick={() => s.saveSettings({ themeColor: x.color })}>
+            <i style={{ background: x.color }} />{x.name}
+          </button>
+        ))}
+        <label className="theme-custom check">
+          <input type="color" defaultValue={st.themeColor || '#183d2e'} key={st.themeColor}
+            onChange={(e) => { const v = e.target.value; clearTimeout(window.__themeT); window.__themeT = setTimeout(() => s.saveSettings({ themeColor: v }), 400) }} />自己調
+        </label>
+      </div>
+      <div className="theme-preview" style={{ background: st.themeColor || '#183d2e', color: textOn(st.themeColor || '#183d2e') }}>{s.shop?.name || '我的攤位'}　預覽</div>
+
       <h4>功能開關</h4>
       <T k="cashCount">零錢數量管理（開店、收攤點各面額數量）</T>
       <T k="coin1">1 元面額</T>
       <T k="giftEnabled">贈與單</T>
       <T k="brewEnabled">沖泡耗用單</T>
       <T k="preorderEnabled">預定&amp;宅配</T>
-      <label className="check"><input type="checkbox" disabled checked={!!st.voiceEnabled} readOnly />語音輸入（第二階段開放；點選按鈕永遠可用）</label>
+      <T k="voiceEnabled">語音點單（收銀畫面出現「語音點單」按鈕；點選按鈕永遠可用）</T>
 
       <h4>預定付款方式（至少一種）</h4>
       {Object.entries(PAY_TYPE_LABEL).map(([k, label]) => (
@@ -547,6 +631,11 @@ function SettingsTab() {
           </label>
         ))}
       </div>
+
+      <h4>語音別名</h4>
+      <p className="muted small">客人或你習慣的說法，每行一筆「說法=系統名稱」。內建已有：半磅=1/2磅、四分之一磅=1/4磅、藝妓=藝伎、日晒=日曬、金軒=金萱 等。</p>
+      <textarea rows={5} defaultValue={aliasesToText(st.aliases || {})} placeholder={'招牌豆=SL-34\n紅玉=紅茶'}
+        onBlur={(e) => s.saveSettings({ aliases: textToAliases(e.target.value) })} />
     </div>
   )
 }
@@ -573,8 +662,25 @@ function DataTab() {
       ) : <p className="muted">尚未選擇場次</p>}
       <hr />
       <p className="muted">登入帳號：{s.user?.email}</p>
+      <p className="muted small">帳號 ID：<code>{s.user?.uid}</code>{s.isAdmin && <span className="badge">系統管理者</span>}</p>
       <button onClick={() => signOut(auth)}>登出</button>
     </div>
   )
 }
 
+
+// ---------------- 版本 ----------------
+function VersionTab() {
+  return (
+    <div className="card changelog">
+      <p>目前版本 <b className="num">v{VERSION}</b>。iPad 上看到的版本號和這裡一樣，就代表已經更新到最新。</p>
+      <p className="muted small">沒有更新時：關掉 App 再打開；仍舊沒有，在 Safari 重新整理一次。</p>
+      {CHANGELOG.map((c) => (
+        <section key={c.v} className={c.v === VERSION ? 'current' : ''}>
+          <h4><span className="num">v{c.v}</span><span className="muted small">{c.date}</span></h4>
+          <ul>{c.items.map((x) => <li key={x}>{x}</li>)}</ul>
+        </section>
+      ))}
+    </div>
+  )
+}

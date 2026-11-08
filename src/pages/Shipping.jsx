@@ -35,7 +35,7 @@ export default function Shipping() {
 
   return (
     <div className="page">
-      <div className="seg">
+      <div className="seg toolbar">
         {[['pending', '未出貨'], ['shipped', '已出貨'], ['cancelled', '已取消'], ['all', '全部']].map(([k, v]) => (
           <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>
             {v}{k === 'pending' ? `（${all.filter(({ o, ps }) => !ps.cancelled && !o.pre.shipped).length}）` : ''}

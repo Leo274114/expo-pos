@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
-import { collection, doc, onSnapshot, setDoc, writeBatch } from 'firebase/firestore'
+import { collection, doc, getDoc, onSnapshot, setDoc, writeBatch } from 'firebase/firestore'
 import { auth, db } from './firebase.js'
 import { DEFAULT_SETTINGS, computeStock, skuLabel, addDays } from './lib/calc.js'
 
@@ -72,10 +72,18 @@ export function ShopProvider({ children }) {
   const [events, setEvents] = useState([])
   const [ev, setEv] = useState({ stockInit: {}, orders: [], adjustments: [], cashCounts: {}, cashMoves: [], shipping: {} })
   const [loaded, setLoaded] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => { onWriteError = (e) => toast('儲存失敗：' + (e.code || e.message), { kind: 'error', ms: 8000 }) }, [toast])
 
   useEffect(() => onAuthStateChanged(auth, (u) => setUser(u || null)), [])
+
+  // 系統管理者：Firestore 的 admins/{uid} 文件存在
+  useEffect(() => {
+    setIsAdmin(false)
+    if (!user?.uid) return
+    getDoc(doc(db, 'admins', user.uid)).then((s) => setIsAdmin(s.exists())).catch(() => setIsAdmin(false))
+  }, [user?.uid])
 
   const shopId = user?.uid
   const shopPath = shopId ? `shops/${shopId}` : null
@@ -135,7 +143,7 @@ export function ShopProvider({ children }) {
     const stock = computeStock(ev.stockInit, ev.orders, ev.adjustments)
     const event = events.find((e) => e.id === eventId) || null
     return {
-      user, shop, shopId, shopPath, settings, optionLists, products, skus, events, event, eventId, eventPath,
+      user, isAdmin, shop, shopId, shopPath, settings, optionLists, products, skus, events, event, eventId, eventPath,
       productById, skuById, labelOf, stock, loaded, ...ev,
       // 寫入工具
       batch: () => writeBatch(db),
@@ -148,7 +156,7 @@ export function ShopProvider({ children }) {
       },
       deleteAfterOf: (e) => (e?.end ? addDays(e.end, 14) : null)
     }
-  }, [user, shop, shopId, shopPath, optionLists, products, skus, events, eventId, eventPath, ev, loaded])
+  }, [user, isAdmin, shop, shopId, shopPath, optionLists, products, skus, events, eventId, eventPath, ev, loaded])
 
   return <ShopCtx.Provider value={value}>{children}</ShopCtx.Provider>
 }

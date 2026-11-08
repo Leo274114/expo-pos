@@ -4,11 +4,15 @@ import { fmt, today, summarize, countTotal, expectedCash, skuLabel } from '../li
 import { exportEventExcel } from '../lib/excel.js'
 import DaySelect, { eventDays } from '../components/DaySelect.jsx'
 import BarChart from '../components/BarChart.jsx'
+import CountUp from '../components/CountUp.jsx'
+import Icon from '../components/Icon.jsx'
+import { sortCats } from '../lib/template.js'
 
 export default function Summary() {
   const s = useShop()
   const ui = useUi()
   const [day, setDay] = useState(today())
+  const [scope, setScope] = useState('day')
   if (!s.eventId) return <div className="page"><div className="warn">請先建立展覽場次。</div></div>
   const r = summarize(s.orders, day)
 
@@ -20,15 +24,18 @@ export default function Summary() {
 
   const daily = eventDays(s.event).map((d) => ({ label: d.slice(5).replace('-', '/'), value: summarize(s.orders, d).revenue.total }))
 
-  const rows = Object.values(r.perSku).sort((a, b) => (a.category || '').localeCompare(b.category || '') || b.amount - a.amount)
-  const byCat = {}
+  // 各品項銷售數量：可切換「當天」或「整個展期」
+  const itemSum = scope === 'event' ? summarize(s.orders) : r
+  const rows = Object.values(itemSum.perSku).sort((a, b) => b.amount - a.amount)
+  const byCatRaw = {}
   for (const x of rows) {
-    const c = (byCat[x.category || '其他'] ||= { qty: 0, amount: 0, rows: [] })
+    const c = (byCatRaw[x.category || '其他'] ||= { qty: 0, amount: 0, rows: [] })
     c.rows.push(x); c.qty += x.qty; c.amount += x.amount
   }
+  const byCat = Object.fromEntries(sortCats(Object.keys(byCatRaw)).map((k) => [k, byCatRaw[k]]))
 
   const low = s.skus
-    .filter((k) => k.active !== false && s.productById[k.productId]?.trackStock !== false && s.productById[k.productId]?.active !== false)
+    .filter((k) => k.active !== false && !(k.components || []).length && s.productById[k.productId]?.trackStock !== false && s.productById[k.productId]?.active !== false)
     .map((k) => ({ k, n: s.stock[k.id] ?? 0 }))
     .filter((x) => x.n <= 5)
     .sort((a, b) => a.n - b.n)
@@ -39,21 +46,21 @@ export default function Summary() {
 
   return (
     <div className="page summary">
-      <div className="row between wrap">
+      <div className="row between wrap toolbar">
         <DaySelect event={s.event} value={day} onChange={setDay} />
         <button onClick={() => exportEventExcel(s).catch((e) => ui.toast('下載失敗：' + e.message, { kind: 'error' }))}>下載 Excel</button>
       </div>
 
       <div className="kpis">
-        <div className="kpi main"><span>今日營業額</span><b>{fmt(r.revenue.total)}</b></div>
-        <div className="kpi"><span>💵 現金</span><b>{fmt(r.revenue.cash)}</b></div>
-        <div className="kpi"><span>LINE Pay</span><b>{fmt(r.revenue.linepay)}</b></div>
-        <div className="kpi"><span>銷售筆數</span><b>{r.orderCount}</b></div>
+        <div className="kpi main"><span>今日營業額</span><b><CountUp key={day} value={r.revenue.total} /></b></div>
+        <div className="kpi"><span><Icon name="cash" size={18} />現金</span><b><CountUp key={day} value={r.revenue.cash || 0} /></b></div>
+        <div className="kpi"><span><Icon name="phonepay" size={18} />LINE Pay</span><b><CountUp key={day} value={r.revenue.linepay || 0} /></b></div>
+        <div className="kpi"><span>銷售筆數</span><b><CountUp key={day} value={r.orderCount} money={false} /></b></div>
       </div>
 
       <div className="card">
         <h4>每小時營業額</h4>
-        <BarChart data={hourly} />
+        <BarChart key={'h' + day} data={hourly} />
       </div>
 
       <div className="grid2">
@@ -85,7 +92,13 @@ export default function Summary() {
       </div>
 
       <div className="card">
-        <h4>各品項銷售數量</h4>
+        <div className="row between wrap">
+          <h4>各品項銷售數量</h4>
+          <div className="seg small-seg">
+            <button className={scope === 'day' ? 'on' : ''} onClick={() => setScope('day')}>{day === today() ? '今天' : day.slice(5).replace('-', '/')}</button>
+            <button className={scope === 'event' ? 'on' : ''} onClick={() => setScope('event')}>整個展期</button>
+          </div>
+        </div>
         <div className="table-wrap">
           <table>
             <thead><tr><th>品項</th><th>銷售</th><th>預定</th><th>退回</th><th>贈與</th><th>沖泡</th><th>金額</th></tr></thead>
@@ -96,7 +109,7 @@ export default function Summary() {
                   <tr key={x.skuId}><td>{x.name}</td><td>{x.qty || ''}</td><td>{x.preQty || ''}</td><td>{x.retQty || ''}</td><td>{x.giftQty || ''}</td><td>{x.brewQty || ''}</td><td>{x.amount ? fmt(x.amount) : ''}</td></tr>
                 ))
               ])}
-              {!rows.length && <tr><td colSpan={7} className="muted center">這天還沒有銷售</td></tr>}
+              {!rows.length && <tr><td colSpan={7} className="muted center">{scope === 'event' ? '展期內還沒有銷售' : '這天還沒有銷售'}</td></tr>}
             </tbody>
           </table>
         </div>

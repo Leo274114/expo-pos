@@ -83,25 +83,42 @@ export const effectivePrice = (sku) =>
 
 // ---------- 單據對庫存的影響 ----------
 // 回傳 [{skuId, delta, reason}]；作廢單無影響
+// 品項若有 components（套裝、盒裝共用散包庫存），改扣組成品項：每件扣 qty × 組成數量
+const expand = (it, sign, reason) =>
+  it.components?.length
+    ? it.components.map((c) => ({ skuId: c.skuId, delta: sign * it.qty * c.qty, reason: `${reason}（${it.name}）` }))
+    : [{ skuId: it.skuId, delta: sign * it.qty, reason }]
+
 export function orderMoves(o) {
   if (!o || o.status === 'void') return []
   const out = []
   const items = o.items || []
   const rets = o.rets || []
   if (o.type === 'sale' || o.type === 'exchange') {
-    for (const it of items) if (!it.pre) out.push({ skuId: it.skuId, delta: -it.qty, reason: o.type === 'sale' ? '銷售' : '換貨換出' })
+    for (const it of items) if (!it.pre) out.push(...expand(it, -1, o.type === 'sale' ? '銷售' : '換貨換出'))
   } else if (o.type === 'gift') {
-    for (const it of items) out.push({ skuId: it.skuId, delta: -it.qty, reason: '贈與' })
+    for (const it of items) out.push(...expand(it, -1, '贈與'))
   } else if (o.type === 'brew') {
-    for (const it of items) out.push({ skuId: it.skuId, delta: -it.qty, reason: '沖泡耗用' })
+    for (const it of items) out.push(...expand(it, -1, '沖泡耗用'))
   }
   if (o.type === 'return' || o.type === 'exchange') {
     for (const r of rets) {
-      if (r.restock) out.push({ skuId: r.skuId, delta: r.qty, reason: '退貨回庫存' })
+      if (r.restock) out.push(...expand(r, 1, '退貨回庫存'))
       else out.push({ skuId: r.skuId, delta: 0, reason: `瑕疵不回庫存（${r.qty}）` })
     }
   }
   return out
+}
+
+// 一列購物車佔用各基本品項幾件：{ skuId: 件數 }
+export function lineUnits(line) {
+  if (line.components?.length) return Object.fromEntries(line.components.map((c) => [c.skuId, c.qty * line.qty]))
+  return { [line.skuId]: line.qty }
+}
+
+// 套裝／連動品項可賣幾件：各組成品項可用量 ÷ 組成數量，取最小
+export function bundleAvail(components, availOf) {
+  return Math.min(...components.map((c) => Math.floor(availOf(c.skuId) / c.qty)))
 }
 
 // 目前庫存 = 初始 + 所有異動
@@ -268,3 +285,5 @@ export function expectedCash(orders = [], day, openTotal = 0, cashMoves = []) {
   const adj = cashMoves.filter((c) => c.day === day).reduce((s, c) => s + (Number(c.amount) || 0), 0)
   return { cashSales: cash, adjustments: adj, expected: openTotal + cash + adj }
 }
+
+export const componentAvail = (components, availOf) => bundleAvail(components, availOf)

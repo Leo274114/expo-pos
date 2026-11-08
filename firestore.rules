@@ -11,9 +11,9 @@ service cloud.firestore {
       match /{path=**} {
         allow read, write: if request.auth != null && request.auth.uid == shopId;
       }
-      // 系統管理者（LEO）可讀銷售資料，但讀不到宅配收件資料
+      // 系統管理者（浩子）可讀銷售資料；讀不到庫存（初始庫存、庫存調整）與宅配收件資料
       match /events/{eventId}/{coll}/{docId} {
-        allow read: if isAdmin() && coll != 'shipping';
+        allow read: if isAdmin() && !(coll in ['shipping', 'stock', 'adjustments']);
       }
       match /{coll}/{docId} {
         allow read: if isAdmin();

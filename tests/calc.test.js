@@ -106,3 +106,18 @@ test('預定狀態與報表、現金對帳', () => {
   const cancelled = preIndex([...orders, { type: 'cancelPre', refOrderId: 'o1', money: { method: 'cash', amount: -800 } }])(orders[0])
   assert.equal(cancelled.cancelled, true)
 })
+
+test('組成：套裝與盒裝扣單包庫存', async () => {
+  const { componentAvail } = await import('../src/lib/calc.js')
+  const init = { pack: { initial: 25 }, a: { initial: 4 }, b: { initial: 9 } }
+  const orders = [
+    { type: 'sale', items: [{ skuId: 'box', name: '一盒', qty: 2, components: [{ skuId: 'pack', qty: 10 }] }] },
+    { type: 'sale', items: [{ skuId: 'set', name: '套裝', qty: 1, components: [{ skuId: 'a', qty: 1 }, { skuId: 'b', qty: 2 }] }] },
+    { type: 'return', rets: [{ skuId: 'set', name: '套裝', qty: 1, restock: true, components: [{ skuId: 'a', qty: 1 }, { skuId: 'b', qty: 2 }] }] }
+  ]
+  const s = computeStock(init, orders, [])
+  assert.equal(s.pack, 5); assert.equal(s.a, 4); assert.equal(s.b, 9)
+  assert.equal(componentAvail([{ skuId: 'pack', qty: 10 }], (id) => s[id]), 0)
+  assert.equal(componentAvail([{ skuId: 'a', qty: 1 }, { skuId: 'b', qty: 2 }], (id) => s[id]), 4)
+  assert.equal(componentAvail([{ skuId: 'x', qty: 1 }], () => Infinity), Infinity)
+})

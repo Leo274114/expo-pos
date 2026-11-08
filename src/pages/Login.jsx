@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase.js'
+import Icon from '../components/Icon.jsx'
+import { VERSION } from '../version.js'
 
 export default function Login() {
   const [err, setErr] = useState('')
@@ -19,11 +21,12 @@ export default function Login() {
   }
   return (
     <div className="splash login">
-      <div className="logo">☕</div>
+      <div className="logo"><Icon name="leaf" size={56} stroke={1.4} /></div>
       <h1>出攤記帳</h1>
       <p className="muted">展場銷售・庫存・零錢對帳</p>
       <button className="primary big" onClick={login}>使用 Google 帳號登入</button>
       {err && <p className="warn">登入失敗：{err}</p>}
+      <p className="muted small">v{VERSION}</p>
     </div>
   )
 }

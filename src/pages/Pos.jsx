@@ -4,10 +4,12 @@ import { db } from '../firebase.js'
 import { useShop, useUi, useCarts, commit, deviceId } from '../store.jsx'
 import {
   fmt, skuLabel, effectivePrice, cartTotals, changeBreakdown, denomsFor, dayOf, orderMoves,
-  lowStockCrossings, PAY_TYPE_LABEL, GIFT_TO
+  lowStockCrossings, componentAvail, PAY_TYPE_LABEL, GIFT_TO
 } from '../lib/calc.js'
 import Modal from '../components/Modal.jsx'
-import { sortCats } from '../lib/template.js'
+import { sortCats, catColor } from '../lib/template.js'
+import { parseOrder } from '../lib/voice.js'
+import Icon from '../components/Icon.jsx'
 
 let lineSeq = 0
 const lineKey = () => Date.now().toString(36) + '-' + lineSeq++
@@ -23,6 +25,7 @@ export default function Pos() {
   const [zero, setZero] = useState(null)       // sku
   const [priceEdit, setPriceEdit] = useState(null) // line
   const [qtyEdit, setQtyEdit] = useState(null) // { c, l }
+  const [voiceOpen, setVoiceOpen] = useState(false)
   const [discountOpen, setDiscountOpen] = useState(false)
   const [checkout, setCheckout] = useState(false)
   const [cartOpen, setCartOpen] = useState(false) // 手機版購物車展開
@@ -36,25 +39,58 @@ export default function Pos() {
   const curCat = cats.includes(cat) ? cat : cats[0]
 
   // 所有暫存單中已佔用的數量（現貨）
-  const reserved = (skuId) =>
-    cs.carts.reduce((n, c) => n + c.lines.filter((l) => l.skuId === skuId && !l.pre && !l.ret).reduce((a, l) => a + l.qty, 0), 0)
-  const tracks = (sku) => s.productById[sku.productId]?.trackStock !== false
-  const avail = (sku) => (tracks(sku) ? (s.stock[sku.id] ?? 0) - reserved(sku.id) : Infinity)
+  // 套裝／盒裝的組成也算佔用
+  const reserved = (skuId) => {
+    let n = 0
+    for (const c of cs.carts) for (const l of c.lines) {
+      if (l.pre || l.ret) continue
+      if (l.components?.length) { for (const x of l.components) if (x.skuId === skuId) n += x.qty * l.qty }
+      else if (l.skuId === skuId) n += l.qty
+    }
+    return n
+  }
+  const tracksId = (skuId) => {
+    const k = s.skuById[skuId]
+    return !!k && s.productById[k.productId]?.trackStock !== false
+  }
+  const leftOf = (skuId) => (tracksId(skuId) ? (s.stock[skuId] ?? 0) - reserved(skuId) : Infinity)
+  const tracks = (sku) => (sku.components?.length ? sku.components.some((c) => tracksId(c.skuId)) : s.productById[sku.productId]?.trackStock !== false)
+  const avail = (sku) => (sku.components?.length ? componentAvail(sku.components, leftOf) : leftOf(sku.id))
 
   const updateLines = (fn, cartId = cart.id) => cs.update(cartId, (c) => ({ ...c, lines: fn(c.lines) }))
 
-  const addSku = (sku, pre = false) => {
-    if (!pre && tracks(sku) && avail(sku) <= 0) { setZero(sku); return }
+  const pushLine = (sku, qty, pre) => {
     const product = s.productById[sku.productId]
     const price = effectivePrice(sku)
     updateLines((lines) => {
       const i = lines.findIndex((l) => l.skuId === sku.id && !l.ret && !!l.pre === pre && l.price === price && !l.reason)
-      if (i >= 0) return lines.map((l, j) => (j === i ? { ...l, qty: l.qty + 1 } : l))
+      if (i >= 0) return lines.map((l, j) => (j === i ? { ...l, qty: l.qty + qty } : l))
       return [...lines, {
         key: lineKey(), skuId: sku.id, name: skuLabel(sku, product), category: product?.category || '', unit: product?.unit || '',
-        qty: 1, price, listPrice: Number(sku.price) || 0, pre
+        qty, price, listPrice: Number(sku.price) || 0, pre,
+        ...(sku.components?.length ? { components: sku.components.map((c) => ({ skuId: c.skuId, qty: Number(c.qty) || 1 })) } : {})
       }]
     })
+  }
+
+  const addSku = (sku, pre = false) => {
+    if (!pre && tracks(sku) && avail(sku) <= 0) { setZero(sku); return }
+    pushLine(sku, 1, pre)
+  }
+
+  // 語音點單一次加入多件：庫存不足的部分改為預定（有開啟預定時）
+  const addVoiceLines = (items) => {
+    const short = []
+    for (const { sku, qty } of items) {
+      const can = tracks(sku) ? Math.max(0, Math.min(qty, avail(sku))) : qty
+      if (can > 0) pushLine(sku, can, false)
+      const rest = qty - can
+      if (rest > 0) {
+        if (s.settings.preorderEnabled && !cart.refOrderId) { pushLine(sku, rest, true); short.push(`${skuLabel(sku, s.productById[sku.productId])} ${rest} 件改為預定`) }
+        else short.push(`${skuLabel(sku, s.productById[sku.productId])} 庫存不足，少加 ${rest} 件`)
+      }
+    }
+    if (short.length) ui.toast(short.join('；'), { kind: 'error', ms: 7000 })
   }
 
   // 這一列最多可以到幾件
@@ -102,6 +138,8 @@ export default function Pos() {
   // 客人卡片左右滑動（scroll-snap），和上方分頁同步
   const slider = useRef(null)
   const scrollTimer = useRef(null)
+  const userScroll = useRef(false)
+  const markUser = () => { userScroll.current = true }
   const firstScroll = useRef(true)
   useEffect(() => {
     const el = slider.current
@@ -131,8 +169,49 @@ export default function Pos() {
       const el = slider.current
       if (!el || !el.clientWidth) return
       const i = Math.round(el.scrollLeft / el.clientWidth)
-      if (i !== cs.active && i >= 0 && i < cs.carts.length) cs.setActive(i)
-    }, 90)
+      // 只有手指／觸控板滑動才切換客人；程式捲動（點分頁、新增客人）不會改變目前客人
+      if (userScroll.current) {
+        userScroll.current = false
+        if (i !== cs.active && i >= 0 && i < cs.carts.length) cs.setActive(i)
+      } else if (i !== cs.active) {
+        el.scrollTo({ left: cs.active * el.clientWidth, behavior: 'smooth' })
+      }
+    }, 120)
+  }
+
+  // 電腦用滑鼠拖曳切換（觸控螢幕直接用手指滑）
+  const onPointerDown = (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return
+    const el = slider.current
+    if (!el) return
+    const start = { x: e.clientX, left: el.scrollLeft, moved: false }
+    const move = (ev) => {
+      const dx = ev.clientX - start.x
+      if (!start.moved && Math.abs(dx) < 6) return
+      if (!start.moved) { start.moved = true; el.style.scrollSnapType = 'none'; el.classList.add('dragging') }
+      el.scrollLeft = start.left - dx
+      requestAnimationFrame(paint)
+    }
+    const up = (ev) => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      if (!start.moved) return
+      const w = el.clientWidth
+      const dx = ev.clientX - start.x
+      const from = Math.round(start.left / w)
+      let to = Math.abs(dx) > w * 0.18 ? from + (dx < 0 ? 1 : -1) : from
+      to = Math.max(0, Math.min(cs.carts.length - 1, to))
+      el.classList.remove('dragging')
+      el.scrollTo({ left: to * w, behavior: 'smooth' })
+      setTimeout(() => { el.style.scrollSnapType = '' }, 400)
+      cs.setActive(to)
+      // 拖曳結束不要誤觸按鈕
+      const block = (ce) => { ce.stopPropagation(); ce.preventDefault() }
+      el.addEventListener('click', block, { capture: true, once: true })
+      setTimeout(() => el.removeEventListener('click', block, { capture: true }), 50)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
   }
 
   if (!s.eventId) return <div className="page"><div className="warn">請先到「管理」建立展覽場次。</div></div>
@@ -154,30 +233,35 @@ export default function Pos() {
       <div className="pos-main">
         {/* 商品區 */}
         <div className="products-pane">
-          <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 搜尋品項（例：SL-34 日曬）" />
+          <div className="search-row">
+            <label className="search"><Icon name="search" size={20} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜尋品項，例：SL-34 日曬" /></label>
+            {s.settings.voiceEnabled && (
+              <button className="mic-btn" onClick={() => setVoiceOpen(true)} aria-label="語音點單"><Icon name="mic" size={22} />語音點單</button>
+            )}
+          </div>
           {searchHits ? (
             <div className="grid">
               {searchHits.map(({ k, label }) => (
-                <SkuButton key={k.id} sku={k} label={label} avail={avail(k)} onClick={() => { addSku(k); }} />
+                <SkuButton key={k.id} sku={k} label={label} cat={s.productById[k.productId]?.category} avail={avail(k)} onClick={() => { addSku(k); }} />
               ))}
               {!searchHits.length && <p className="muted">找不到</p>}
             </div>
           ) : (
             <>
               <div className="tabs scroll">
-                {cats.map((c) => <button key={c} className={c === curCat ? 'on' : ''} onClick={() => setCat(c)}>{c}</button>)}
+                {cats.map((c) => <button key={c} className={c === curCat ? 'on' : ''} style={{ '--cat': catColor(c) }} onClick={() => setCat(c)}><i className="swatch" />{c}</button>)}
               </div>
               <div className="grid">
                 {products.filter((p) => (p.category || '未分類') === curCat).map((p) => {
                   const ks = activeSkus.filter((k) => k.productId === p.id)
                   const single = !(p.levels || []).length && ks.length === 1
-                  if (single) return <SkuButton key={p.id} sku={ks[0]} label={p.name} avail={avail(ks[0])} onClick={() => addSku(ks[0])} />
+                  if (single) return <SkuButton key={p.id} sku={ks[0]} label={p.name} cat={p.category} avail={avail(ks[0])} onClick={() => addSku(ks[0])} />
                   const minP = Math.min(...ks.map(effectivePrice)), maxP = Math.max(...ks.map(effectivePrice))
                   return (
-                    <button key={p.id} className="pbtn" onClick={() => setPicker({ product: p, chosen: [] })}>
+                    <button key={p.id} className="pbtn" style={{ '--cat': catColor(p.category) }} onClick={() => setPicker({ product: p, chosen: [] })}>
                       <span className="pname">{p.name}</span>
-                      <span className="pprice">{minP === maxP ? fmt(minP) : `${fmt(minP)}～${fmt(maxP)}`}</span>
-                      <span className="pstock muted">{ks.length} 種 ›</span>
+                      <span className="pprice num">{minP === maxP ? fmt(minP) : `${fmt(minP)}–${fmt(maxP).replace('$', '')}`}</span>
+                      <span className="pstock">{ks.length} 種選擇</span>
                     </button>
                   )
                 })}
@@ -190,7 +274,7 @@ export default function Pos() {
         {/* 購物車 */}
         <div className={'cart-pane' + (cartOpen ? ' open' : '')}>
           <button className="cart-toggle" onClick={() => setCartOpen(!cartOpen)}>
-            🛒 {cart.name}・{t.count} 件・<b>{fmt(t.total)}</b> {cartOpen ? '▼' : '▲'}
+            <span>{cart.name}　{t.count} 件</span><b className="num">{fmt(t.total)}</b><span className="chev">{cartOpen ? '收起' : '展開'}</span>
           </button>
           <div className="cart-tabs">
             {cs.carts.map((c, i) => {
@@ -201,13 +285,16 @@ export default function Pos() {
                 </button>
               )
             })}
-            <button className="add" onClick={() => cs.add()}>＋</button>
+            <button className="add" onClick={() => cs.add()} aria-label="新增客人"><Icon name="plus" size={18} /></button>
           </div>
-          <div className="cart-slider" ref={slider} onScroll={onSlide}>
+          <div className="cart-slider" ref={slider} onScroll={onSlide} onPointerDown={onPointerDown} onTouchStart={markUser} onWheel={markUser}>
             {cs.carts.map((c, ci) => (
               <div key={c.id} className="cart-slide">
                 <div className={'cart-card' + (ci === cs.active ? ' active' : '')}>
-                  <div className="cart-card-head">{c.name}</div>
+                  <div className="cart-card-head">
+                    <b>{c.name}</b>
+                    <span>{c.lines.reduce((a, l) => a + l.qty, 0)} 件</span>
+                  </div>
                   {c.refOrderId && <div className="hint">退換貨：退回品項已帶入，可再加入換出的品項。</div>}
                   {c.lines.map((l) => (
                     <div key={l.key} className={'cart-line' + (l.ret ? ' ret' : '') + (l.pre ? ' pre' : '')}>
@@ -223,22 +310,27 @@ export default function Pos() {
                         )}
                       </div>
                       <div className="cl-qty">
-                        <button onClick={() => inc(c, l, -1)}>−</button>
+                        <button onClick={() => inc(c, l, -1)} aria-label="減少"><Icon name="minus" size={18} /></button>
                         <button className="qty-num" onClick={() => setQtyEdit({ c, l })}>{l.qty}</button>
-                        <button onClick={() => inc(c, l, 1)}>＋</button>
+                        <button onClick={() => inc(c, l, 1)} aria-label="增加"><Icon name="plus" size={18} /></button>
                       </div>
                       <button className={'cl-price' + (l.price !== l.listPrice && !l.ret ? ' changed' : '')} disabled={l.ret} onClick={() => setPriceEdit(l)}>
                         {l.ret ? '-' : ''}{fmt(l.price * l.qty)}
                         {l.price !== l.listPrice && !l.ret && <small>{l.reason || '特價'}</small>}
                       </button>
-                      <button className="icon trash" onClick={() => removeLine(c, l)} aria-label="刪除">🗑️</button>
+                      <button className="icon trash" onClick={() => removeLine(c, l)} aria-label="刪除"><Icon name="trash" size={20} /></button>
                     </div>
                   ))}
-                  {!c.lines.length && <p className="muted center">點左邊商品加入</p>}
+                  {!c.lines.length && <p className="empty-cart">點商品加入{c.name}的購物車</p>}
                 </div>
               </div>
             ))}
           </div>
+          {cs.carts.length > 1 && (
+            <div className="dots" aria-hidden="true">
+              {cs.carts.map((c, i) => <button key={c.id} className={i === cs.active ? 'on' : ''} onClick={() => cs.setActive(i)} />)}
+            </div>
+          )}
           <div className="cart-foot">
             <div className="row between"><span>小計</span><span>{fmt(t.subtotal)}</span></div>
             <div className="row between">
@@ -246,7 +338,7 @@ export default function Pos() {
               <span>{t.discountAmt ? '-' + fmt(t.discountAmt) : ''}</span>
             </div>
             {t.retTotal > 0 && <div className="row between"><span>退回</span><span>-{fmt(t.retTotal)}</span></div>}
-            <div className="row between total"><span>合計</span><span>{fmt(t.total)}</span></div>
+            <div className="row between total"><span>合計</span><span className="num big-num">{fmt(t.total)}</span></div>
             <div className="row gap">
               <button onClick={() => { if (!cart.lines.length || confirm(`清除「${cart.name}」？`)) cs.remove(cart.id) }}>清除</button>
               <button className="primary big" disabled={!cart.lines.length} onClick={() => setCheckout(true)}>結帳</button>
@@ -271,10 +363,12 @@ export default function Pos() {
           {!s.settings.preorderEnabled && <p className="muted">預定&amp;宅配功能已關閉（可在管理頁開啟）。</p>}
         </Modal>
       )}
+      {voiceOpen && <VoiceModal cartName={cart.name} skus={activeSkus} avail={avail} onClose={() => setVoiceOpen(false)}
+        onAdd={(items) => { addVoiceLines(items); setVoiceOpen(false) }} />}
       {qtyEdit && <QtyModal line={qtyEdit.l} max={maxQtyOf(qtyEdit.l)} onClose={() => setQtyEdit(null)}
         onSave={(n) => { setQty(qtyEdit.c, qtyEdit.l, n); setQtyEdit(null) }} />}
       {priceEdit && <PriceModal line={priceEdit} onClose={() => setPriceEdit(null)}
-        onSave={(price, reason) => { updateLines((ls) => ls.map((l) => (l.key === priceEdit.key ? { ...l, price, reason } : l))); setPriceEdit(null) }} />}
+        onSave={(price, reason) => { const owner = cs.carts.find((c) => c.lines.some((l) => l.key === priceEdit.key)); if (owner) updateLines((ls) => ls.map((l) => (l.key === priceEdit.key ? { ...l, price, reason } : l)), owner.id); setPriceEdit(null) }} />}
       {discountOpen && <DiscountModal cart={cart} subtotal={t.subtotal} onClose={() => setDiscountOpen(false)}
         onSave={(d) => { cs.update(cart.id, (c) => ({ ...c, discount: d })); setDiscountOpen(false) }} />}
       {checkout && <Checkout cart={cart} onClose={() => setCheckout(false)} onDone={() => { setCheckout(false); setCartOpen(false); cs.remove(cart.id) }} />}
@@ -282,15 +376,16 @@ export default function Pos() {
   )
 }
 
-function SkuButton({ sku, label, avail, onClick }) {
+function SkuButton({ sku, label, avail, onClick, cat }) {
   const out = avail <= 0
+  const low = !out && avail !== Infinity && avail <= 3
   return (
-    <button className={'pbtn' + (out ? ' soldout' : '')} onClick={onClick}>
+    <button className={'pbtn' + (out ? ' soldout' : '')} style={{ '--cat': catColor(cat) }} onClick={onClick}>
       <span className="pname">{label}</span>
-      <span className="pprice">
-        {sku.promoPrice != null && sku.promoPrice !== '' && <s className="muted">{fmt(sku.price)}</s>} {fmt(effectivePrice(sku))}
+      <span className="pprice num">
+        {sku.promoPrice != null && sku.promoPrice !== '' && <s>{fmt(sku.price)}</s>}{fmt(effectivePrice(sku))}
       </span>
-      <span className="pstock">{avail === Infinity ? '' : out ? '售完' : `剩 ${avail}`}</span>
+      <span className={'pstock' + (low ? ' low' : '')}>{avail === Infinity ? '現做' : out ? '售完' : `剩 ${avail}`}</span>
     </button>
   )
 }
@@ -314,16 +409,71 @@ function OptionPicker({ picker, setPicker, skus, avail, onPick }) {
         {values.map((v) => {
           if (isLast) {
             const k = match.find((x) => x.opts?.[depth] === v)
-            return <SkuButton key={v} sku={k} label={v} avail={avail(k)} onClick={() => onPick(k)} />
+            return <SkuButton key={v} sku={k} label={v} cat={p.category} avail={avail(k)} onClick={() => onPick(k)} />
           }
           const sub = match.filter((x) => x.opts?.[depth] === v)
           const left = sub.reduce((a, k) => a + Math.max(0, avail(k) === Infinity ? 0 : avail(k)), 0)
           return (
-            <button key={v} className="pbtn" onClick={() => setPicker({ ...picker, chosen: [...picker.chosen, v] })}>
-              <span className="pname">{v}</span><span className="pstock muted">{sub.length} 種{left ? `・共剩 ${left}` : ''} ›</span>
+            <button key={v} className="pbtn" style={{ '--cat': catColor(p.category) }} onClick={() => setPicker({ ...picker, chosen: [...picker.chosen, v] })}>
+              <span className="pname">{v}</span><span className="pstock">{sub.length} 種{left ? `，共剩 ${left}` : ''}</span>
             </button>
           )
         })}
+      </div>
+    </Modal>
+  )
+}
+
+// ---------------- 語音點單 ----------------
+function VoiceModal({ cartName, skus, avail, onClose, onAdd }) {
+  const s = useShop()
+  const [text, setText] = useState('')
+  const [rows, setRows] = useState([])
+  const vSkus = useMemo(() => skus.map((k) => ({ ...k, productName: s.productById[k.productId]?.name || '' })), [skus, s.productById])
+  useEffect(() => {
+    const id = setTimeout(() => setRows(parseOrder(text, vSkus, s.settings.aliases || {}).map((r, i) => ({ ...r, id: i }))), 250)
+    return () => clearTimeout(id)
+  }, [text, vSkus, s.settings.aliases])
+  const set = (id, patch) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  const ready = rows.filter((r) => r.sku && r.status !== 'none' && r.qty > 0)
+  const label = (k) => skuLabel(k, s.productById[k.productId])
+  return (
+    <Modal title="語音點單" wide onClose={onClose}
+      footer={<>
+        <button onClick={onClose}>取消</button>
+        <button className="primary" disabled={!ready.length || rows.some((r) => r.status === 'pick' && !r.sku)}
+          onClick={() => onAdd(ready.map((r) => ({ sku: r.sku, qty: r.qty })))}>加入{cartName}（{ready.reduce((a, r) => a + r.qty, 0)} 件）</button>
+      </>}>
+      <textarea className="voice-input" autoFocus rows={2} value={text} onChange={(e) => setText(e.target.value)}
+        placeholder="按鍵盤上的麥克風說出品項，例如：SL-34 日曬半磅兩包、蜂蜜一瓶" />
+      <p className="muted small">沒看到麥克風？iPad／iPhone「設定 → 一般 → 鍵盤」打開「啟用聽寫」。也可以直接打字。</p>
+      <div className="voice-rows">
+        {rows.map((r) => (
+          <div key={r.id} className={'voice-row ' + (r.status === 'none' ? 'none' : r.sku ? 'ok' : 'pick')}>
+            <div className="vr-said">「{r.text}」</div>
+            {r.status === 'none' ? <div className="muted">聽不懂這段，可以略過或改字</div> : (
+              <>
+                {r.sku
+                  ? <div className="vr-sku">{label(r.sku)}{avail(r.sku) !== Infinity && (r.qty > Math.max(0, avail(r.sku))
+                        ? <span className="short small">　庫存只有 {Math.max(0, avail(r.sku))}，{s.settings.preorderEnabled ? `${r.qty - Math.max(0, avail(r.sku))} 件會改為預定` : '只會加入現有庫存'}</span>
+                        : <span className="muted small">　庫存 {Math.max(0, avail(r.sku))}</span>)}
+                      {r.candidates.length > 0 && <button className="link small" onClick={() => set(r.id, { sku: null })}>換一個</button>}</div>
+                  : (
+                    <div className="chips">
+                      <span className="chip-label">要哪一個？</span>
+                      {r.candidates.map((k) => <button key={k.id} className="chip" onClick={() => set(r.id, { sku: k })}>{label(k)}</button>)}
+                    </div>
+                  )}
+                <div className="cl-qty">
+                  <button onClick={() => set(r.id, { qty: Math.max(0, r.qty - 1) })} aria-label="減少"><Icon name="minus" size={18} /></button>
+                  <span className="qty-num">{r.qty}</span>
+                  <button onClick={() => set(r.id, { qty: r.qty + 1 })} aria-label="增加"><Icon name="plus" size={18} /></button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+        {!rows.length && <p className="empty-cart">說完會在這裡列出聽到的品項，確認後再加入購物車。</p>}
       </div>
     </Modal>
   )
@@ -428,9 +578,9 @@ function Checkout({ cart, onClose, onDone }) {
     const orderType = isRet ? (hasOut ? 'exchange' : 'return') : type
     const items = cart.lines.filter((l) => !l.ret).map((l) => ({
       skuId: l.skuId, name: l.name, category: l.category || '', qty: l.qty, listPrice: l.listPrice, price: l.price,
-      ...(l.pre ? { pre: true } : {}), ...(l.reason ? { reason: l.reason } : {})
+      ...(l.pre ? { pre: true } : {}), ...(l.reason ? { reason: l.reason } : {}), ...(l.components ? { components: l.components } : {})
     }))
-    const rets = cart.lines.filter((l) => l.ret).map((l) => ({ skuId: l.skuId, name: l.name, qty: l.qty, price: l.price, restock: !!l.restock }))
+    const rets = cart.lines.filter((l) => l.ret).map((l) => ({ skuId: l.skuId, name: l.name, qty: l.qty, price: l.price, restock: !!l.restock, ...(l.components ? { components: l.components } : {}) }))
     const money = !isMoney && !isRet ? null : due === 0 ? { method: null, amount: 0 } : {
       method, amount: due,
       ...(method === 'cash' && due > 0 ? { received: received === '' ? due : rec, change: received === '' ? 0 : change } : {})
@@ -526,8 +676,8 @@ function Checkout({ cart, onClose, onDone }) {
           <div className="row between total"><span>{due < 0 ? '應退客人' : '本次應收'}</span><span>{fmt(Math.abs(due))}</span></div>
           {due !== 0 && (
             <div className="seg">
-              <button className={method === 'cash' ? 'on' : ''} onClick={() => setMethod('cash')}>💵 現金</button>
-              <button className={method === 'linepay' ? 'on' : ''} onClick={() => setMethod('linepay')}>LINE Pay</button>
+              <button className={method === 'cash' ? 'on' : ''} onClick={() => setMethod('cash')}><Icon name="cash" size={20} />現金</button>
+              <button className={method === 'linepay' ? 'on' : ''} onClick={() => setMethod('linepay')}><Icon name="phonepay" size={20} />LINE Pay</button>
             </div>
           )}
           {method === 'linepay' && due < 0 && <p className="warn">請到 LINE Pay 商家後台操作退款。</p>}
