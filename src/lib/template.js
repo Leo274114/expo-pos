@@ -10,7 +10,10 @@ export const TEMPLATE_LISTS = [
 
 // 類別顯示順序；「周邊產品」預設是空的，讓攤主自由新增
 export const CATEGORY_ORDER = ['咖啡豆', '濾掛', '茶葉', '咖啡周邊茶', '其他', '周邊產品', '套裝組合', '現場飲品']
-export const sortCats = (cats) => [...cats].sort((a, b) => {
+// 類別排序：攤主拖曳過的順序優先，其次內建順序
+export const sortCats = (cats, custom = []) => [...cats].sort((a, b) => {
+  const ci = custom.indexOf(a), cj = custom.indexOf(b)
+  if (ci >= 0 || cj >= 0) return (ci < 0 ? 999 : ci) - (cj < 0 ? 999 : cj)
   const i = CATEGORY_ORDER.indexOf(a), j = CATEGORY_ORDER.indexOf(b)
   return (i < 0 ? 99 : i) - (j < 0 ? 99 : j) || a.localeCompare(b)
 })

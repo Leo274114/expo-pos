@@ -86,9 +86,9 @@ export async function exportEventExcel(s) {
     收付金額: o.money?.amount || 0, 方式: METHOD_LABEL[o.money?.method] || ''
   })))
 
-  // 8. 待出貨（含收件資料）
+  // 8. 預約單（含收件資料）
   const preOf = preIndex(orders)
-  add('待出貨', orders.filter((o) => o.pre && o.status !== 'void').map((o) => {
+  add('預約單', orders.filter((o) => o.pre && o.status !== 'void').map((o) => {
     const sh = s.shipping[o.id] || {}
     const ps = preOf(o)
     return {

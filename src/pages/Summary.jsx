@@ -34,7 +34,7 @@ export default function Summary() {
     const c = (byCatRaw[x.category || '其他'] ||= { qty: 0, amount: 0, rows: [] })
     c.rows.push(x); c.qty += x.qty; c.amount += x.amount
   }
-  const byCat = Object.fromEntries(sortCats(Object.keys(byCatRaw)).map((k) => [k, byCatRaw[k]]))
+  const byCat = Object.fromEntries(sortCats(Object.keys(byCatRaw), s.settings.catOrder).map((k) => [k, byCatRaw[k]]))
 
   const soldOut = soldOutTimes(s.stockInit, s.orders, s.adjustments)
   const startTs = Object.fromEntries(eventDays(s.event).map((d) => [d, null]))

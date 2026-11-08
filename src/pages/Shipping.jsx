@@ -37,13 +37,15 @@ export default function Shipping() {
 
   return (
     <div className="page">
-      <div className="row between"><h3 style={{ margin: '4px 0' }}>待出貨</h3><Help>{HELP.shipping}</Help></div>
-      <div className="seg toolbar">
+      <div className="toolbar">
+        <div className="row between"><h3 style={{ margin: '0 0 8px' }}>預約單</h3><Help>{HELP.shipping}</Help></div>
+        <div className="seg" style={{ margin: 0 }}>
         {[['pending', '未出貨'], ['shipped', '已出貨'], ['cancelled', '已取消'], ['all', '全部']].map(([k, v]) => (
           <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>
             {v}{k === 'pending' ? `（${all.filter(({ o, ps }) => !ps.cancelled && !o.pre.shipped).length}）` : ''}
           </button>
         ))}
+        </div>
       </div>
       <div className="cards">
         {list.map(({ o, ps }) => {

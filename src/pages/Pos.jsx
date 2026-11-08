@@ -24,6 +24,12 @@ export default function Pos() {
   const cart = cs.cart
   const [cat, setCat] = useState('')
   const [q, setQ] = useState('')
+  // 搜尋紀錄：用搜尋加入過商品的關鍵字會記在這台裝置，下次點搜尋框就會出現
+  const histKey = `search-hist:${s.shopId}`
+  const [hist, setHist] = useState(() => { try { return JSON.parse(localStorage.getItem(histKey) || '[]') } catch { return [] } })
+  const [searchFocus, setSearchFocus] = useState(false)
+  const saveHist = (list) => { setHist(list); try { localStorage.setItem(histKey, JSON.stringify(list)) } catch { /* 忽略 */ } }
+  const remember = (word) => { const w = word.trim(); if (w) saveHist([w, ...hist.filter((x) => x !== w)].slice(0, 10)) }
   const [picker, setPicker] = useState(null)   // { product, chosen: [] }
   const [zero, setZero] = useState(null)       // sku
   const [priceEdit, setPriceEdit] = useState(null) // line
@@ -54,7 +60,7 @@ export default function Pos() {
     const ok = new Set(activeSkus.map((k) => k.id))
     return Object.entries(m).filter(([id]) => ok.has(id)).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([id, n]) => ({ sku: s.skuById[id], n }))
   }, [s.orders, activeSkus, s.skuById])
-  const cats = [...(hot.length ? ['熱賣'] : []), ...sortCats([...new Set(products.map((p) => p.category || '未分類'))])]
+  const cats = [...(hot.length ? ['熱賣'] : []), ...sortCats([...new Set(products.map((p) => p.category || '未分類'))], s.settings.catOrder)]
   const curCat = cats.includes(cat) ? cat : cats[0]
 
   // 所有暫存單中已佔用的數量（現貨）
@@ -94,6 +100,7 @@ export default function Pos() {
   }
 
   const addSku = (sku, pre = false) => {
+    if (q.trim()) remember(q)
     if (!pre && tracks(sku) && avail(sku) <= 0) { setZero(sku); return }
     pushLine(sku, 1, pre)
   }
@@ -254,7 +261,23 @@ export default function Pos() {
         {/* 商品區 */}
         <div className="products-pane">
           <div className="search-row">
-            <label className="search"><Icon name="search" size={20} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜尋品項，例：SL-34 日曬" /></label>
+            <div className="search-box">
+              <label className="search"><Icon name="search" size={20} />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜尋品項，例：SL-34 日曬"
+                  onFocus={() => setSearchFocus(true)} onBlur={() => setTimeout(() => setSearchFocus(false), 150)} />
+                {q && <button className="icon clear-q" onClick={() => setQ('')} aria-label="清除搜尋"><Icon name="close" size={18} /></button>}
+              </label>
+              {searchFocus && hist.filter((h) => !q || (h.includes(q) && h !== q)).length > 0 && (
+                <div className="search-hist">
+                  <div className="row between"><span className="muted small">最近搜尋</span><button className="link small" onMouseDown={(e) => e.preventDefault()} onClick={() => saveHist([])}>清除紀錄</button></div>
+                  <div className="chips">
+                    {hist.filter((h) => !q || (h.includes(q) && h !== q)).map((h) => (
+                      <button key={h} className="chip" onMouseDown={(e) => e.preventDefault()} onClick={() => setQ(h)}>{h}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             {s.settings.voiceEnabled && (
               <button className="mic-btn" onClick={() => setVoiceOpen({ rec: startRecognizer() })} aria-label="語音點單"><Icon name="mic" size={22} />語音點單</button>
             )}

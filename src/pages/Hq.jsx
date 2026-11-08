@@ -175,7 +175,7 @@ function ShopDetail({ shop, eventId, onEvent, onClose }) {
               <table>
                 <thead><tr><th>品項</th><th>銷售</th><th>預定</th><th>退回</th><th>贈與</th><th>金額</th></tr></thead>
                 <tbody>
-                  {sortCats(Object.keys(byCat)).map((cat) => [
+                  {sortCats(Object.keys(byCat), shop.settings?.catOrder).map((cat) => [
                     <tr key={cat} className="cat-row"><td>{cat}</td><td>{byCat[cat].qty}</td><td colSpan={3}></td><td>{fmt(byCat[cat].amount)}</td></tr>,
                     ...byCat[cat].rows.map((x) => (
                       <tr key={x.skuId}><td>{x.name}</td><td>{x.qty || ''}</td><td>{x.preQty || ''}</td><td>{x.retQty || ''}</td><td>{x.giftQty || ''}</td><td>{x.amount ? fmt(x.amount) : ''}</td></tr>

@@ -163,7 +163,7 @@ nav.bottom .dot { position: absolute; top: -5px; right: -14px; background: var(-
 .pos-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(330px, 1fr); min-height: 0; }
 .products-pane { overflow: auto; padding: 12px 14px; }
 .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
-.search-row .search { flex: 1; margin: 0; }
+.search-row .search { margin: 0; }
 .mic-btn { border-radius: 999px; background: var(--ink); color: #fff; border-color: var(--ink); padding: 0 18px; min-height: 46px; font-weight: 600; }
 .mic-btn:hover:not(:disabled) { background: var(--tea-deep); }
 textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-sm); width: 100%; resize: vertical; }
@@ -427,14 +427,13 @@ code { font-family: var(--num); background: var(--paper); padding: 1px 6px; bord
 .help-btn { width: 22px; height: 22px; min-height: 0; min-width: 0; padding: 0; border-radius: 50%; font-size: 13px; font-weight: 700; line-height: 1;
   border: 1.5px solid #b7c2ba; color: var(--muted); background: var(--surface); font-family: var(--num); }
 .help-btn:hover:not(:disabled), .help-btn.on { border-color: var(--tea); color: #fff; background: var(--tea); }
-.help-pop { position: absolute; z-index: 40; top: 28px; left: -12px; width: min(300px, 80vw); background: var(--ink); color: #f1f5f2;
+.help-pop { position: fixed; z-index: 100; display: block; background: var(--ink); color: #f1f5f2;
   font-size: 14px; font-weight: 400; line-height: 1.55; padding: 10px 14px; border-radius: var(--r-md); box-shadow: 0 10px 28px rgba(16, 32, 24, 0.3);
   text-align: left; white-space: normal; letter-spacing: 0; animation: rise 0.15s ease-out; }
 .help-pop b { display: block; margin-bottom: 4px; }
-.help-pop::before { content: ''; position: absolute; top: -6px; left: 18px; border: 6px solid transparent; border-top: 0; border-bottom-color: var(--ink); }
+.help-pop::before { content: ''; position: absolute; top: -6px; left: calc(var(--arrow, 24px) - 6px); border: 6px solid transparent; border-top: 0; border-bottom-color: var(--ink); }
+.help-pop.up::before { top: auto; bottom: -6px; border-bottom: 0; border-top: 6px solid var(--ink); }
 th .help-pop { font-size: 14px; }
-.help-pop.right { left: auto; right: -12px; }
-.help-pop.right::before { left: auto; right: 18px; }
 
 .chart.few .chart-val { font-size: 17px; font-weight: 600; min-height: 22px; font-family: var(--num); }
 .chart.few .chart-labels { font-size: 14px; }
@@ -510,3 +509,20 @@ tr.sorting td { background: var(--tea-soft); }
 .file-btn { position: relative; flex-direction: row; display: inline-flex; align-items: center; min-height: 42px; padding: 6px 16px; border-radius: var(--r-sm); border: 1px solid var(--tea); color: var(--tea); font-weight: 600; cursor: pointer; margin: 0; font-size: 16px; }
 .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .hq-logo { width: 22px; height: 22px; object-fit: contain; border-radius: 5px; vertical-align: middle; margin-right: 6px; }
+
+.cat-section.sorting { padding: 4px 12px 8px; }
+h3.cat .grip { margin-right: 4px; }
+
+.search-box { position: relative; flex: 1; }
+.search-box .search { margin: 0; }
+.clear-q { min-height: 32px; min-width: 32px; }
+.search-hist { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; right: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 12px; box-shadow: 0 12px 28px rgba(24, 61, 46, 0.16); }
+.search-hist .chips { margin: 6px 0 0; }
+
+.crop-wrap { display: flex; justify-content: center; margin: 10px 0; }
+.crop-box { position: relative; overflow: hidden; border-radius: var(--r-md); cursor: grab; touch-action: none; box-shadow: 0 0 0 2px var(--tea);
+  background: repeating-conic-gradient(#e7ebe8 0% 25%, #ffffff 0% 50%) 0 0 / 20px 20px; }
+.crop-box img { position: absolute; max-width: none; user-select: none; pointer-events: none; }
+.crop-zoom { display: flex; align-items: center; gap: 10px; }
+.crop-zoom input[type=range] { flex: 1; accent-color: var(--tea); min-height: 0; padding: 0; border: none; }
+.crop-zoom button:not(.link) { width: 42px; padding: 0; border-radius: 50%; color: var(--tea); }

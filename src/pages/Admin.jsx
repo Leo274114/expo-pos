@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { collection, getDocs, doc, writeBatch } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '../firebase.js'
@@ -102,8 +102,8 @@ function ProductsTab() {
     const g = {}
     if (s.products.length) for (const c of CATEGORY_ORDER) g[c] = []
     for (const p of s.products) (g[p.category || '未分類'] ||= []).push(p)
-    return sortCats(Object.keys(g)).map((c) => [c, g[c]])
-  }, [s.products])
+    return sortCats(Object.keys(g), s.settings.catOrder).map((c) => [c, g[c]])
+  }, [s.products, s.settings.catOrder])
 
   return (
     <div>
@@ -113,9 +113,10 @@ function ProductsTab() {
         <button onClick={seedTemplate}>載入內建範本</button>
         {s.products.length > 0 && <span className="row"><button className="danger-outline" onClick={resetAll}>重設為內建範本</button><Help>{HELP.reset}</Help></span>}
       </div>
-      {grouped.map(([cat, ps]) => (
-        <section key={cat}>
-          <h3 className="cat row between">{cat}<button className="small-btn" onClick={() => setAdding(cat)}>＋ 新增到{cat}</button></h3>
+      <SortGroup items={grouped} onDrop={(a, b) => s.saveSettings({ catOrder: moveItem(grouped.map(([c]) => c), a, b) })}>
+      {([cat, ps], ci, catGrip) => (
+        <section key={cat} data-sort className="cat-section">
+          <h3 className="cat row between"><span className="row">{catGrip}{cat}</span><button className="small-btn" onClick={() => setAdding(cat)}>＋ 新增到{cat}</button></h3>
           {!ps.length && <p className="muted">{CATEGORY_HINT[cat] || '此類別沒有商品'}</p>}
           <SortGroup items={ps} onDrop={(a, b) => reorderTo(s.shopPath, 'products', ps, a, b)}>
             {(p, i, grip) => (
@@ -125,7 +126,8 @@ function ProductsTab() {
             )}
           </SortGroup>
         </section>
-      ))}
+      )}
+      </SortGroup>
       {!s.products.length && <p className="muted">還沒有商品。可以先「載入內建範本」，再修改。</p>}
       {adding !== null && <ProductForm initialCategory={adding} onClose={() => setAdding(null)} />}
     </div>
@@ -137,7 +139,7 @@ function ProductForm({ product, onClose, initialCategory = '' }) {
   const [f, setF] = useState(product || { name: '', category: initialCategory, unit: initialCategory === '周邊產品' ? '個' : initialCategory === '套裝組合' ? '組' : '包', levels: [], trackStock: true, active: true })
   const mySkus = product ? s.skus.filter((k) => k.productId === product.id) : []
   const hasCombos = mySkus.some((k) => (k.opts || []).length)
-  const cats = sortCats([...new Set([...s.products.map((p) => p.category), ...CATEGORY_ORDER])].filter(Boolean))
+  const cats = sortCats([...new Set([...s.products.map((p) => p.category), ...CATEGORY_ORDER])].filter(Boolean), s.settings.catOrder)
   const levelsNow = f.levels.filter(Boolean)
   const levelsChanged = product && levelsNow.join('|') !== (product.levels || []).filter(Boolean).join('|')
   const save = () => {
@@ -654,7 +656,7 @@ function DataTab() {
         <>
           <p>場次：{s.event.name}（{s.event.start} ～ {s.event.end}）</p>
           <p className="muted">資料保留至 {del}，請於期限內下載。</p>
-          {pending > 0 && <p className="warn">還有 {pending} 筆預定未出貨，收件資料在「待出貨」工作表。</p>}
+          {pending > 0 && <p className="warn">還有 {pending} 筆預定未出貨，收件資料在「預約單」工作表。</p>}
           <button className="primary" onClick={() => exportEventExcel(s).then(() => toast('已下載')).catch((e) => toast('下載失敗：' + e.message, { kind: 'error' }))}>
             下載 Excel（.xlsx）
           </button>
@@ -709,31 +711,17 @@ function PromoEditor({ promos, onSave }) {
   )
 }
 
-// 攤位 Logo：上傳後在手機上縮小到 256px，存進攤位資料（不需要另外的圖片空間）
+// 攤位 Logo：選圖後可拖曳、放大縮小決定範圍，輸出 256×256（存進攤位資料，不需要另外的圖片空間）
 function LogoUpload({ logo, onSave }) {
   const [err, setErr] = useState('')
+  const [src, setSrc] = useState(null)
   const pick = (e) => {
     const f = e.target.files?.[0]
     e.target.value = ''
     if (!f) return
     if (!f.type.startsWith('image/')) return setErr('請選擇圖片檔')
     setErr('')
-    const url = URL.createObjectURL(f)
-    const img = new Image()
-    img.onload = () => {
-      const max = 256
-      const r = Math.min(1, max / Math.max(img.width, img.height))
-      const c = document.createElement('canvas')
-      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r)
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
-      let data = c.toDataURL('image/png')
-      if (data.length > 180000) data = c.toDataURL('image/jpeg', 0.85)
-      URL.revokeObjectURL(url)
-      if (data.length > 400000) return setErr('圖片太大，請換一張小一點的')
-      onSave(data)
-    }
-    img.onerror = () => setErr('讀不到這張圖片')
-    img.src = url
+    setSrc(URL.createObjectURL(f))
   }
   return (
     <div className="logo-row">
@@ -741,6 +729,51 @@ function LogoUpload({ logo, onSave }) {
       <label className="file-btn">{logo ? '更換圖片' : '上傳圖片'}<input type="file" accept="image/*" onChange={pick} /></label>
       {logo && <button className="danger-outline" onClick={() => { if (confirm('移除 Logo？')) onSave(null) }}>移除</button>}
       {err && <span className="neg small">{err}</span>}
+      {src && <LogoCrop src={src} onClose={() => { URL.revokeObjectURL(src); setSrc(null) }}
+        onDone={(data) => { URL.revokeObjectURL(src); setSrc(null); if (data.length > 400000) setErr('圖片太大，請縮小範圍或換一張'); else onSave(data) }} />}
     </div>
+  )
+}
+
+const BOX = 260
+function LogoCrop({ src, onClose, onDone }) {
+  const [img, setImg] = useState(null)
+  const [scale, setScale] = useState(1)
+  const [off, setOff] = useState({ x: 0, y: 0 })
+  const drag = useRef(null)
+  useEffect(() => { const im = new Image(); im.onload = () => setImg(im); im.src = src }, [src])
+  const fit = img ? BOX / Math.max(img.width, img.height) : 1
+  const dw = img ? img.width * fit * scale : 0
+  const dh = img ? img.height * fit * scale : 0
+  const left = BOX / 2 - dw / 2 + off.x
+  const top = BOX / 2 - dh / 2 + off.y
+  const down = (e) => { e.currentTarget.setPointerCapture(e.pointerId); drag.current = { x: e.clientX, y: e.clientY, o: off } }
+  const move = (e) => { if (!drag.current) return; const d = drag.current; setOff({ x: d.o.x + e.clientX - d.x, y: d.o.y + e.clientY - d.y }) }
+  const up = () => { drag.current = null }
+  const zoom = (z) => setScale((v) => Math.min(4, Math.max(0.3, +(v * z).toFixed(3))))
+  const done = () => {
+    const c = document.createElement('canvas')
+    const S = 256, r = S / BOX
+    c.width = S; c.height = S
+    c.getContext('2d').drawImage(img, left * r, top * r, dw * r, dh * r)
+    onDone(c.toDataURL('image/png'))
+  }
+  return (
+    <Modal title="調整 Logo 範圍" onClose={onClose}
+      footer={<><button onClick={onClose}>取消</button><button className="primary" disabled={!img} onClick={done}>完成</button></>}>
+      <p className="muted small">拖曳圖片移動位置，用下方滑桿放大或縮小。方框內就是顯示的範圍。</p>
+      <div className="crop-wrap">
+        <div className="crop-box" style={{ width: BOX, height: BOX }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+          onWheel={(e) => zoom(e.deltaY < 0 ? 1.08 : 1 / 1.08)}>
+          {img && <img src={src} alt="" draggable={false} style={{ left, top, width: dw, height: dh }} />}
+        </div>
+      </div>
+      <div className="crop-zoom">
+        <button onClick={() => zoom(1 / 1.15)} aria-label="縮小"><Icon name="minus" size={18} /></button>
+        <input type="range" min="0.3" max="4" step="0.01" value={scale} onChange={(e) => setScale(Number(e.target.value))} aria-label="縮放" />
+        <button onClick={() => zoom(1.15)} aria-label="放大"><Icon name="plus" size={18} /></button>
+        <button className="link small" onClick={() => { setScale(1); setOff({ x: 0, y: 0 }) }}>重設</button>
+      </div>
+    </Modal>
   )
 }
