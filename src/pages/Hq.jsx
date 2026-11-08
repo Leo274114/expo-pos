@@ -7,6 +7,8 @@ import { sortCats } from '../lib/template.js'
 import BarChart from '../components/BarChart.jsx'
 import CountUp from '../components/CountUp.jsx'
 import Icon from '../components/Icon.jsx'
+import Help from '../components/Help.jsx'
+import { HELP } from '../lib/help.js'
 
 // 浩子總覽：各攤位的銷售統計（讀不到庫存與宅配收件資料）
 const list = (snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }))
@@ -73,7 +75,7 @@ export default function Hq() {
       </div>
 
       <div className="card">
-        <h4>各攤位</h4>
+        <h4>各攤位<Help>{HELP.hq}</Help></h4>
         <div className="table-wrap">
           <table className="hq-table">
             <thead><tr><th>攤位</th><th>帳號</th><th>目前場次</th><th>營業額</th><th>筆數</th><th>加入日期</th><th></th></tr></thead>

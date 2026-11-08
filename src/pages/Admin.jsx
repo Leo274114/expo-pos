@@ -10,6 +10,8 @@ import Modal from '../components/Modal.jsx'
 import Icon from '../components/Icon.jsx'
 import { VERSION, CHANGELOG } from '../version.js'
 import { aliasesToText, textToAliases } from '../lib/voice.js'
+import Help from '../components/Help.jsx'
+import { HELP } from '../lib/help.js'
 
 const TABS = ['商品與價格', '選項清單', '展覽場次', '庫存調整', '功能設定', '資料下載', `版本 ${VERSION}`]
 
@@ -118,7 +120,7 @@ function ProductsTab() {
       <div className="row gap">
         <button className="primary" onClick={() => setAdding('')}>＋ 新增商品</button>
         <button onClick={seedTemplate}>載入內建範本</button>
-        {s.products.length > 0 && <button className="danger-outline" onClick={resetAll}>重設為內建範本</button>}
+        {s.products.length > 0 && <span className="row"><button className="danger-outline" onClick={resetAll}>重設為內建範本</button><Help>{HELP.reset}</Help></span>}
       </div>
       {grouped.map(([cat, ps]) => (
         <section key={cat}>
@@ -178,7 +180,7 @@ function ProductForm({ product, onClose, initialCategory = '' }) {
       <label>單位<input value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })} placeholder="包、盒、瓶、杯" /></label>
       <label className="check"><input type="checkbox" checked={f.trackStock} onChange={(e) => setF({ ...f, trackStock: e.target.checked })} />計算庫存（現場飲品可取消）</label>
       <fieldset>
-        <legend>選項層（最多三層）</legend>
+        <legend>選項層（最多三層）<Help>{HELP.levels}</Help></legend>
         {levelsChanged && mySkus.length > 0 && <p className="warn">修改選項層會刪除現有的 {mySkus.length} 個組合，儲存後請重新產生組合並填價格。</p>}
         {[0, 1, 2].map((i) => (
           <select key={i} value={f.levels[i] || ''} onChange={(e) => setLevel(i, e.target.value)}>
@@ -251,7 +253,7 @@ function ProductCard({ p, open, onToggle, move }) {
           </div>
           {levels.length > 0 && (
             <div className="matrix">
-              <h4>產生組合：每一層勾選要的選項</h4>
+              <h4>產生組合：每一層勾選要的選項<Help>{HELP.combos}</Help></h4>
               {levels.map((l, i) => (
                 <div key={l.id} className="chips">
                   <span className="chip-label">{l.name}</span>
@@ -285,7 +287,7 @@ function SkuTable({ product, skus }) {
     <div className="table-wrap">
       <table className="sku-table">
         <thead>
-          <tr><th></th><th>組合</th><th>定價</th><th>活動價</th>{showStock && <><th>初始庫存</th><th>目前</th></>}<th>組成</th><th>啟用</th><th></th></tr>
+          <tr><th></th><th>組合</th><th>定價</th><th>活動價<Help>{HELP.promoPrice}</Help></th>{showStock && <><th>初始庫存<Help>{HELP.initStock}</Help></th><th>目前</th></>}<th>組成<Help>{HELP.components}</Help></th><th>啟用</th><th></th></tr>
         </thead>
         <tbody>
           {skus.map((k, i) => {
@@ -492,7 +494,7 @@ function EventsTab() {
         )
       })}
       <div className="card">
-        <h4>建立新場次</h4>
+        <h4>建立新場次<Help>{HELP.events}</Help></h4>
         <label>名稱<input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
         <div className="row gap">
           <label>開始<input type="date" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} /></label>
@@ -542,7 +544,7 @@ function AdjustTab() {
   return (
     <div className="grid2">
       <div className="card">
-        <h4>新增庫存調整（註銷）</h4>
+        <h4>新增庫存調整（註銷）<Help>{HELP.adjust}</Help></h4>
         <SkuPicker value={skuId} onChange={setSkuId} />
         <label>差異數量（少了請輸入負數，例如 -2）
           <input inputMode="numeric" value={delta} onChange={(e) => setDelta(e.target.value.replace(/[^\d-]/g, ''))} />
@@ -573,7 +575,7 @@ function SettingsTab() {
   const st = s.settings
   const [name, setName] = useState(s.shop?.name || '')
   const T = ({ k, children }) => (
-    <div className="setting-row"><span>{children}</span><Switch checked={!!st[k]} onChange={(v) => s.saveSettings({ [k]: v })} /></div>
+    <div className="setting-row"><span>{children}{HELP[k] && <Help>{HELP[k]}</Help>}</span><Switch checked={!!st[k]} onChange={(v) => s.saveSettings({ [k]: v })} /></div>
   )
   const payTypes = st.prePayTypes || {}
   return (
@@ -582,7 +584,7 @@ function SettingsTab() {
         <input value={name} onChange={(e) => setName(e.target.value)}
           onBlur={() => commit(writeBatch(db).set(doc(db, s.shopPath), { name }, { merge: true }))} />
       </label>
-      <h4>畫面上方顏色</h4>
+      <h4>畫面上方顏色<Help>{HELP.theme}</Help></h4>
       <div className="theme-row">
         {THEME_PRESETS.map((x) => (
           <button key={x.color} className={'theme-swatch' + ((st.themeColor || '#183d2e').toLowerCase() === x.color.toLowerCase() ? ' on' : '')}
@@ -605,7 +607,7 @@ function SettingsTab() {
       <T k="preorderEnabled">預定&amp;宅配</T>
       <T k="voiceEnabled">語音點單（收銀畫面出現「語音點單」按鈕；點選按鈕永遠可用）</T>
 
-      <h4>預定付款方式（至少一種）</h4>
+      <h4>預定付款方式（至少一種）<Help>{HELP.prePay}</Help></h4>
       {Object.entries(PAY_TYPE_LABEL).map(([k, label]) => (
         <label key={k} className="check">
           <input type="checkbox" checked={!!payTypes[k]}
@@ -617,13 +619,16 @@ function SettingsTab() {
         </label>
       ))}
 
-      <h4>滿額免運門檻</h4>
+      <h4>滿額活動<Help>{HELP.promos}</Help></h4>
+      <PromoEditor promos={st.promos || []} onSave={(promos) => s.saveSettings({ promos })} />
+
+      <h4>滿額免運門檻<Help>{HELP.freeShip}</Help></h4>
       <label>商品合計達此金額時運費自動帶 0（0 = 不設定）
         <input className="num" inputMode="numeric" defaultValue={st.freeShipThreshold || 0}
           onBlur={(e) => s.saveSettings({ freeShipThreshold: Number(e.target.value) || 0 })} />
       </label>
 
-      <h4>低庫存通知門檻</h4>
+      <h4>低庫存通知門檻<Help>{HELP.lowStock}</Help></h4>
       <div className="row gap">
         {[5, 3, 1].map((t) => (
           <label key={t} className="check">
@@ -632,7 +637,7 @@ function SettingsTab() {
         ))}
       </div>
 
-      <h4>語音別名</h4>
+      <h4>語音別名<Help>{HELP.aliases}</Help></h4>
       <p className="muted small">客人或你習慣的說法，每行一筆「說法=系統名稱」。內建已有：半磅=1/2磅、四分之一磅=1/4磅、藝妓=藝伎、日晒=日曬、金軒=金萱 等。</p>
       <textarea rows={5} defaultValue={aliasesToText(st.aliases || {})} placeholder={'招牌豆=SL-34\n紅玉=紅茶'}
         onBlur={(e) => s.saveSettings({ aliases: textToAliases(e.target.value) })} />
@@ -681,6 +686,30 @@ function VersionTab() {
           <ul>{c.items.map((x) => <li key={x}>{x}</li>)}</ul>
         </section>
       ))}
+    </div>
+  )
+}
+
+// 滿額活動：單筆商品金額（扣折扣、不含運費）達門檻時，結帳畫面提醒
+function PromoEditor({ promos, onSave }) {
+  const [list, setList] = useState(promos)
+  const save = (next) => { setList(next); onSave(next) }
+  const set = (i, patch) => save(list.map((p, j) => (j === i ? { ...p, ...patch } : p)))
+  return (
+    <div className="promo-editor">
+      <p className="muted small">單筆消費（扣掉折扣、不含運費）達到門檻時，結帳畫面會提醒你發贈品；快達到時，購物車也會提示「再買多少」。</p>
+      {list.map((p, i) => (
+        <div key={p.id} className="promo-row">
+          <label>門檻<input className="num" inputMode="numeric" defaultValue={p.threshold || ''} placeholder="2500"
+            onBlur={(e) => set(i, { threshold: Number(e.target.value) || 0 })} /></label>
+          <label className="grow">送什麼／要做什麼<input defaultValue={p.text} placeholder="例：套餐兌換券一份、抽扭蛋一顆"
+            onBlur={(e) => set(i, { text: e.target.value.trim() })} /></label>
+          <span className="row"><label className="check small"><input type="checkbox" checked={!!p.repeat} onChange={(e) => set(i, { repeat: e.target.checked })} />每滿一次送一份</label><Help>{HELP.promoRepeat}</Help></span>
+          <label className="check small"><input type="checkbox" checked={p.on !== false} onChange={(e) => set(i, { on: e.target.checked })} />啟用</label>
+          <button className="icon" onClick={() => { if (confirm('刪除這個活動？')) save(list.filter((_, j) => j !== i)) }} aria-label="刪除"><Icon name="trash" size={20} /></button>
+        </div>
+      ))}
+      <button onClick={() => save([...list, { id: Date.now().toString(36), threshold: 0, text: '', repeat: false, on: true }])}>＋ 新增滿額活動</button>
     </div>
   )
 }

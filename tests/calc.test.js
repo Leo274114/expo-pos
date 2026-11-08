@@ -121,3 +121,27 @@ test('組成：套裝與盒裝扣單包庫存', async () => {
   assert.equal(componentAvail([{ skuId: 'a', qty: 1 }, { skuId: 'b', qty: 2 }], (id) => s[id]), 4)
   assert.equal(componentAvail([{ skuId: 'x', qty: 1 }], () => Infinity), Infinity)
 })
+
+import { promoHits, promoNext } from '../src/lib/calc.js'
+test('滿額活動', () => {
+  const ps = [{ id: 'a', threshold: 2500, text: '套餐兌換券' }, { id: 'b', threshold: 1500, text: '扭蛋', repeat: true }]
+  assert.deepEqual(promoHits(2400, ps).map((x) => [x.id, x.count]), [['b', 1]])
+  assert.deepEqual(promoHits(3100, ps).map((x) => [x.id, x.count]), [['a', 1], ['b', 2]])
+  assert.deepEqual(promoHits(9999, [{ ...ps[0], on: false }]), [])
+  assert.equal(promoNext(2200, [ps[0]]).gap, 300)
+  assert.equal(promoNext(500, [ps[0]]), null)
+  assert.equal(promoNext(2800, [ps[1]]).gap, 200)
+})
+
+import { soldOutTimes } from '../src/lib/calc.js'
+test('完售紀錄', () => {
+  const init = { a: { initial: 3 }, b: { initial: 5 } }
+  const orders = [
+    { type: 'sale', ts: 1000, items: [{ skuId: 'a', qty: 2 }] },
+    { type: 'sale', ts: 2000, status: 'void', items: [{ skuId: 'a', qty: 1 }] },
+    { type: 'gift', ts: 3000, items: [{ skuId: 'a', qty: 1 }] },
+    { type: 'sale', ts: 4000, items: [{ skuId: 'b', qty: 1 }] }
+  ]
+  const r = soldOutTimes(init, orders, [{ skuId: 'a', delta: 2, ts: 5000 }])
+  assert.deepEqual(r.map((x) => [x.skuId, x.ts, x.sold]), [['a', 3000, 2]])
+})

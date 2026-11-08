@@ -1,4 +1,4 @@
-import { preIndex, TYPE_LABEL, METHOD_LABEL, PAY_TYPE_LABEL, timeOf, orderMoves, summarize, countTotal, expectedCash, daysBetween, skuLabel } from './calc.js'
+import { soldOutTimes, preIndex, TYPE_LABEL, METHOD_LABEL, PAY_TYPE_LABEL, timeOf, orderMoves, summarize, countTotal, expectedCash, daysBetween, skuLabel } from './calc.js'
 
 // 下載整個場次的 Excel
 export async function exportEventExcel(s) {
@@ -20,7 +20,7 @@ export async function exportEventExcel(s) {
     const base = {
       單號: no[o.id], 日期: o.day, 時間: timeOf(o.ts), 類型: TYPE_LABEL[o.type] || o.type, 狀態: status(o),
       付款方式: METHOD_LABEL[o.money?.method] || '', 本次收付: o.money?.amount || 0, 收款: o.money?.received ?? '', 找零: o.money?.change ?? '',
-      整單折扣: o.discountAmt || 0, 運費: o.shippingFee || 0, 單據合計: o.total ?? '', 贈與對象: o.gift?.to || '', 備註: o.note || o.gift?.note || '',
+      整單折扣: o.discountAmt || 0, 運費: o.shippingFee || 0, 單據合計: o.total ?? '', 贈與對象: o.gift?.to || '', 滿額活動: (o.promos || []).map((p) => p.text + (p.count > 1 ? '×' + p.count : '')).join('、'), 備註: o.note || o.gift?.note || '',
       原單號: o.refOrderId ? no[o.refOrderId] || '' : ''
     }
     const lines = [
@@ -58,6 +58,9 @@ export async function exportEventExcel(s) {
   for (const a of s.adjustments) moves.push({ 日期: a.day, 時間: timeOf(a.ts), 品項: a.name || s.labelOf(a.skuId), 異動: a.delta, 原因: '手動調整：' + a.reason + (a.note ? '・' + a.note : ''), 單號: '' })
   moves.sort((a, b) => (a.日期 + a.時間).localeCompare(b.日期 + b.時間))
   add('庫存異動', moves)
+
+  // 完售紀錄
+  add('完售紀錄', soldOutTimes(s.stockInit, orders, s.adjustments).map((x) => ({ 品項: s.labelOf(x.skuId), 完售日期: x.day, 完售時間: timeOf(x.ts), 賣出數量: x.sold })))
 
   // 6. 零錢對帳
   const cashRows = []

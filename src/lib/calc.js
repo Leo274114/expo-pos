@@ -223,6 +223,7 @@ export function summarize(orders = [], day, adjustments = []) {
     pre: { orders: 0, qty: 0, paid: 0, due: 0 },
     gifts: { count: 0, value: 0, byTo: {} },
     brew: { qty: 0, value: 0 },
+    promos: {},
     orderCount: 0
   }
   const sku = (it) => (r.perSku[it.skuId] ||= { skuId: it.skuId, name: it.name, category: it.category || '', qty: 0, preQty: 0, amount: 0, retQty: 0, giftQty: 0, brewQty: 0 })
@@ -236,6 +237,7 @@ export function summarize(orders = [], day, adjustments = []) {
     }
     if (o.type === 'sale' || o.type === 'exchange') {
       if (o.type === 'sale') r.orderCount++
+      for (const p of o.promos || []) r.promos[p.text] = (r.promos[p.text] || 0) + (p.count || 1)
       r.discountTotal += o.discountAmt || 0
       const ps = preOf(o)
       if (!ps?.cancelled) r.shipTotal += o.shippingFee || 0
@@ -287,3 +289,46 @@ export function expectedCash(orders = [], day, openTotal = 0, cashMoves = []) {
 }
 
 export const componentAvail = (components, availOf) => bundleAvail(components, availOf)
+
+// ---------- 滿額活動 ----------
+// promos: [{ id, threshold, text, repeat, on }]；amount = 商品金額（扣折扣、不含運費）
+export function promoHits(amount, promos = []) {
+  return promos
+    .filter((p) => p.on !== false && Number(p.threshold) > 0 && amount >= Number(p.threshold))
+    .map((p) => ({ id: p.id, text: p.text || '滿額活動', threshold: Number(p.threshold), count: p.repeat ? Math.floor(amount / Number(p.threshold)) : 1 }))
+}
+// 最接近、還沒達到的活動（用來提醒「再買多少」）
+export function promoNext(amount, promos = []) {
+  const next = promos
+    .filter((p) => p.on !== false && Number(p.threshold) > 0)
+    .map((p) => {
+      const t = Number(p.threshold)
+      const goal = p.repeat ? (Math.floor(amount / t) + 1) * t : t
+      return { text: p.text || '滿額活動', gap: goal - amount, goal }
+    })
+    .filter((x) => x.gap > 0 && (x.goal - x.gap) >= x.goal * 0.6)
+    .sort((a, b) => a.gap - b.gap)
+  return next[0] || null
+}
+export const orderPromoAmount = (o) => Math.max(0, (o.subtotal || 0) - (o.discountAmt || 0))
+
+// ---------- 完售紀錄 ----------
+// 依時間重播所有異動，記下每個品項第一次賣到 0 的時間：[{ skuId, ts, day, sold }]
+export function soldOutTimes(stockInit = {}, orders = [], adjustments = []) {
+  const level = {}
+  const sold = {}
+  for (const [k, v] of Object.entries(stockInit)) level[k] = Number(v?.initial ?? v) || 0
+  const events = []
+  for (const o of orders) for (const m of orderMoves(o)) if (m.delta) events.push({ ts: o.ts, skuId: m.skuId, delta: m.delta, sale: o.type === 'sale' || o.type === 'exchange' })
+  for (const a of adjustments) if (Number(a.delta)) events.push({ ts: a.ts, skuId: a.skuId, delta: Number(a.delta) })
+  events.sort((a, b) => a.ts - b.ts)
+  const out = {}
+  for (const e of events) {
+    if (!(e.skuId in level)) continue
+    const before = level[e.skuId]
+    level[e.skuId] = before + e.delta
+    if (e.delta < 0 && e.sale) sold[e.skuId] = (sold[e.skuId] || 0) - e.delta
+    if (before > 0 && level[e.skuId] <= 0 && !out[e.skuId]) out[e.skuId] = { skuId: e.skuId, ts: e.ts, day: dayOf(e.ts), sold: sold[e.skuId] || 0 }
+  }
+  return Object.values(out).sort((a, b) => a.ts - b.ts)
+}

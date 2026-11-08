@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useShop, useUi } from '../store.jsx'
-import { fmt, today, summarize, countTotal, expectedCash, skuLabel } from '../lib/calc.js'
+import { fmt, today, summarize, countTotal, expectedCash, skuLabel, soldOutTimes, timeOf } from '../lib/calc.js'
 import { exportEventExcel } from '../lib/excel.js'
 import DaySelect, { eventDays } from '../components/DaySelect.jsx'
 import BarChart from '../components/BarChart.jsx'
 import CountUp from '../components/CountUp.jsx'
 import Icon from '../components/Icon.jsx'
 import { sortCats } from '../lib/template.js'
+import Help from '../components/Help.jsx'
+import { HELP } from '../lib/help.js'
 
 export default function Summary() {
   const s = useShop()
@@ -34,6 +36,9 @@ export default function Summary() {
   }
   const byCat = Object.fromEntries(sortCats(Object.keys(byCatRaw)).map((k) => [k, byCatRaw[k]]))
 
+  const soldOut = soldOutTimes(s.stockInit, s.orders, s.adjustments)
+  const startTs = Object.fromEntries(eventDays(s.event).map((d) => [d, null]))
+  for (const o of s.orders) if (o.status !== 'void' && (startTs[o.day] == null || o.ts < startTs[o.day])) startTs[o.day] = o.ts
   const low = s.skus
     .filter((k) => k.active !== false && !(k.components || []).length && s.productById[k.productId]?.trackStock !== false && s.productById[k.productId]?.active !== false)
     .map((k) => ({ k, n: s.stock[k.id] ?? 0 }))
@@ -65,7 +70,7 @@ export default function Summary() {
 
       <div className="grid2">
         <div className="card">
-          <h4>金額明細</h4>
+          <h4>金額明細<Help>{HELP.revenue}</Help></h4>
           <div className="row between"><span>原價總額</span><span>{fmt(r.listTotal)}</span></div>
           <div className="row between"><span>折扣與特價</span><span>-{fmt(r.discountTotal)}</span></div>
           <div className="row between"><span>退貨金額</span><span>-{fmt(r.refundTotal)}</span></div>
@@ -80,6 +85,7 @@ export default function Summary() {
           <div className="row between"><span>贈與</span><span>{r.gifts.count} 筆・價值 {fmt(r.gifts.value)}</span></div>
           {Object.entries(r.gifts.byTo).map(([k, v]) => <div key={k} className="row between muted"><span>　{k}</span><span>{v.count} 筆・{fmt(v.value)}</span></div>)}
           <div className="row between"><span>沖泡耗用</span><span>{r.brew.qty} 包</span></div>
+          {Object.entries(r.promos).map(([k, n]) => <div key={k} className="row between"><span>滿額活動：{k}</span><span>{n} 份</span></div>)}
           {s.settings.cashCount && (
             <>
               <h4>零錢對帳</h4>
@@ -126,6 +132,31 @@ export default function Summary() {
             <div key={k.id} className="row between"><span>{skuLabel(k, s.productById[k.productId])}</span><b className={n <= 0 ? 'neg' : ''}>{n <= 0 ? '售完' : n}</b></div>
           ))}
           {!low.length && <p className="muted">庫存充足</p>}
+        </div>
+      </div>
+
+      <div className="card">
+        <h4>完售紀錄<Help>{HELP.soldOut}</Help></h4>
+        <div className="table-wrap">
+          <table className="soldout-table">
+            <thead><tr><th>品項</th><th>完售日期</th><th>完售時間</th><th>當天第一筆後</th><th>賣出</th></tr></thead>
+            <tbody>
+              {soldOut.map((x) => {
+                const st = startTs[x.day]
+                const mins = st ? Math.round((x.ts - st) / 60000) : null
+                return (
+                  <tr key={x.skuId} className={x.day === day ? 'on' : ''}>
+                    <td>{s.labelOf(x.skuId)}</td>
+                    <td>{x.day.slice(5).replace('-', '/')}</td>
+                    <td className="num big-cell">{timeOf(x.ts)}</td>
+                    <td className="muted">{mins == null ? '' : mins >= 60 ? `${Math.floor(mins / 60)} 小時 ${mins % 60} 分` : `${mins} 分`}</td>
+                    <td>{x.sold}</td>
+                  </tr>
+                )
+              })}
+              {!soldOut.length && <tr><td colSpan={5} className="muted center">這個場次還沒有品項賣完</td></tr>}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

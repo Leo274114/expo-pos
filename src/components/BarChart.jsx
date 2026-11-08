@@ -7,7 +7,7 @@ export default function BarChart({ data, height = 180 }) {
   const w = 100 / Math.max(1, data.length)
   const H = height / 3
   return (
-    <div className="chart">
+    <div className={'chart' + (data.length <= 8 ? ' few' : '')}>
       <svg viewBox={`0 0 100 ${H}`} preserveAspectRatio="none" style={{ height }}>
         <line x1="0" x2="100" y1={H - 0.15} y2={H - 0.15} className="baseline" />
         {data.map((d, i) => {

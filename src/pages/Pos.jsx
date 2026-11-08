@@ -4,12 +4,14 @@ import { db } from '../firebase.js'
 import { useShop, useUi, useCarts, commit, deviceId } from '../store.jsx'
 import {
   fmt, skuLabel, effectivePrice, cartTotals, changeBreakdown, denomsFor, dayOf, orderMoves,
-  lowStockCrossings, componentAvail, PAY_TYPE_LABEL, GIFT_TO
+  lowStockCrossings, componentAvail, PAY_TYPE_LABEL, GIFT_TO, promoHits, promoNext
 } from '../lib/calc.js'
 import Modal from '../components/Modal.jsx'
 import { sortCats, catColor } from '../lib/template.js'
 import { parseOrder } from '../lib/voice.js'
 import Icon from '../components/Icon.jsx'
+import Help from '../components/Help.jsx'
+import { HELP } from '../lib/help.js'
 
 let lineSeq = 0
 const lineKey = () => Date.now().toString(36) + '-' + lineSeq++
@@ -334,11 +336,22 @@ export default function Pos() {
           <div className="cart-foot">
             <div className="row between"><span>小計</span><span>{fmt(t.subtotal)}</span></div>
             <div className="row between">
-              <button className="link" onClick={() => setDiscountOpen(true)}>整單折扣{cart.discount?.value ? (cart.discount.type === 'percent' ? `（${cart.discount.value} 折）` : '') : '＋'}</button>
+              <button className="link" onClick={() => setDiscountOpen(true)}>整單折扣{cart.discount?.value ? (cart.discount.type === 'percent' ? `（${cart.discount.value} 折）` : '') : '＋'}</button><Help>{HELP.discount}</Help>
               <span>{t.discountAmt ? '-' + fmt(t.discountAmt) : ''}</span>
             </div>
             {t.retTotal > 0 && <div className="row between"><span>退回</span><span>-{fmt(t.retTotal)}</span></div>}
             <div className="row between total"><span>合計</span><span className="num big-num">{fmt(t.total)}</span></div>
+            {!cart.refOrderId && (() => {
+              const amt = Math.max(0, t.subtotal - t.discountAmt)
+              const got = promoHits(amt, s.settings.promos || [])
+              const nx = promoNext(amt, s.settings.promos || [])
+              return (
+                <>
+                  {got.map((h) => <div key={h.id} className="promo-tag on"><Icon name="gift" size={16} />已達：{h.text}{h.count > 1 ? ` × ${h.count}` : ''}</div>)}
+                  {nx && <div className="promo-tag"><Icon name="gift" size={16} />再買 {fmt(nx.gap)} 可得：{nx.text}</div>}
+                </>
+              )
+            })()}
             <div className="row gap">
               <button onClick={() => { if (!cart.lines.length || confirm(`清除「${cart.name}」？`)) cs.remove(cart.id) }}>清除</button>
               <button className="primary big" disabled={!cart.lines.length} onClick={() => setCheckout(true)}>結帳</button>
@@ -624,6 +637,10 @@ function Checkout({ cart, onClose, onDone }) {
   }
   if (isMoney && due > 0 && method === 'cash' && received !== '' && rec < due) errs.push('收款不足')
 
+  // 滿額活動：只算銷售單的商品金額（扣折扣、不含運費）
+  const promoAmt = Math.max(0, t.subtotal - t.discountAmt)
+  const hits = type === 'sale' && !isRet ? promoHits(promoAmt, st.promos || []) : []
+
   const confirmOrder = () => {
     if (errs.length) return
     const now = Date.now()
@@ -643,6 +660,7 @@ function Checkout({ cart, onClose, onDone }) {
       money, refOrderId: cart.refOrderId || null, note: note || ''
     }
     if (orderType === 'gift') order.gift = { to: giftTo, note }
+    if (hits.length) order.promos = hits.map(({ id, text, count }) => ({ id, text, count }))
     if (t.hasPre && orderType === 'sale') {
       order.pre = { payType, preTotal: t.preShare, paidNow: t.preShare - t.due, due: t.due, shipped: false }
     }
@@ -665,6 +683,7 @@ function Checkout({ cart, onClose, onDone }) {
     const msg = !money ? `已記錄${orderType === 'gift' ? '贈與' : '沖泡耗用'}`
       : due < 0 ? `已完成，退款 ${fmt(-due)}` : `已完成 ${fmt(due)}${change > 0 ? `，找零 ${fmt(change)}` : ''}`
     ui.toast(msg, { kind: 'ok' })
+    for (const h of hits) ui.notice(`${cart.name} 達到滿額活動：${h.text}${h.count > 1 ? ` × ${h.count}` : ''}，記得發給客人`)
     onDone()
   }
 
@@ -676,6 +695,7 @@ function Checkout({ cart, onClose, onDone }) {
         <button onClick={onClose}>返回</button>
         <button className="primary big" disabled={errs.length > 0} onClick={confirmOrder}>確認完成</button>
       </>}>
+      {types.length > 1 && <div className="row between"><span className="muted small">單據類型</span><Help>{HELP.checkoutType}</Help></div>}
       {types.length > 1 && (
         <div className="seg">
           {types.map((x) => <button key={x} className={type === x ? 'on' : ''} onClick={() => setType(x)}>{{ sale: '銷售', gift: '贈與', brew: '沖泡耗用' }[x]}</button>)}
@@ -701,7 +721,7 @@ function Checkout({ cart, onClose, onDone }) {
 
       {type === 'sale' && hasPre && (
         <div className="box">
-          <h4>預定&amp;宅配</h4>
+          <h4>預定&amp;宅配<Help>{HELP.preorderEnabled}</Help></h4>
           <div className="grid2">
             <label>收件人<input value={ship.name} onChange={(e) => setShip({ ...ship, name: e.target.value })} /></label>
             <label>電話<input inputMode="tel" value={ship.phone} onChange={(e) => setShip({ ...ship, phone: e.target.value })} /></label>
@@ -725,6 +745,12 @@ function Checkout({ cart, onClose, onDone }) {
       {type === 'sale' && (
         <>
           {t.discountAmt > 0 && <div className="row between"><span>整單折扣</span><span>-{fmt(t.discountAmt)}</span></div>}
+          {hits.map((h) => (
+            <div key={h.id} className="promo-hit">
+              <Icon name="gift" size={26} />
+              <div><b>達到滿額活動（滿 {fmt(h.threshold)}）</b><div>{h.text}{h.count > 1 ? ` × ${h.count}` : ''}，記得發給客人</div></div>
+            </div>
+          ))}
           <div className="row between total"><span>{due < 0 ? '應退客人' : '本次應收'}</span><span>{fmt(Math.abs(due))}</span></div>
           {due !== 0 && (
             <div className="seg">

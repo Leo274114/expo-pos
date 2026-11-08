@@ -65,6 +65,7 @@ export function OrderCard({ o, no, refNo, returned, onVoid, onReturn }) {
           <b>#{no}</b> <span className="muted">{timeOf(o.ts)}</span> <span className={'badge type-' + o.type}>{TYPE_LABEL[o.type]}</span>
           {isVoid && <span className="badge gray">已作廢</span>}
           {retQty > 0 && <span className="badge red">{retQty >= outQty ? '已退貨' : '部分退貨'}</span>}
+          {(o.promos || []).map((p) => <span key={p.id || p.text} className="badge type-gift">{p.text}{p.count > 1 ? ` ×${p.count}` : ''}</span>)}
           {o.pre && <span className="badge blue">{o.pre.shipped ? '已出貨' : '含預定'}</span>}
           {refNo && <span className="muted">（原單 #{refNo}）</span>}
         </div>

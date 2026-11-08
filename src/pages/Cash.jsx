@@ -5,6 +5,8 @@ import { useShop, useUi, commit, deviceId } from '../store.jsx'
 import { fmt, today, countTotal, denomsFor, expectedCash, timeOf, dayOf } from '../lib/calc.js'
 import { CASH_REASONS } from '../lib/template.js'
 import DaySelect from '../components/DaySelect.jsx'
+import Help from '../components/Help.jsx'
+import { HELP } from '../lib/help.js'
 
 export default function Cash() {
   const s = useShop()
@@ -45,7 +47,7 @@ export default function Cash() {
       ) : <p className="muted">零錢數量管理已關閉，只計算現金總額。</p>}
 
       <div className="card recon">
-        <h4>現金對帳</h4>
+        <h4>現金對帳<Help>{HELP.cashRecon}</Help></h4>
         {s.settings.cashCount && <div className="row between"><span>開店零用金</span><span>{fmt(openTotal)}</span></div>}
         <div className="row between"><span>現金收支（銷售、收尾款、退款）</span><span>{fmt(e.cashSales)}</span></div>
         <div className="row between"><span>現金調整</span><span>{fmt(e.adjustments)}</span></div>

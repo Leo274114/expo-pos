@@ -4,6 +4,8 @@ import { db } from '../firebase.js'
 import { useShop, useUi, commit, deviceId } from '../store.jsx'
 import { fmt, timeOf, dayOf, preIndex, PAY_TYPE_LABEL, METHOD_LABEL } from '../lib/calc.js'
 import Modal from '../components/Modal.jsx'
+import Help from '../components/Help.jsx'
+import { HELP } from '../lib/help.js'
 
 export default function Shipping() {
   const s = useShop()
@@ -35,6 +37,7 @@ export default function Shipping() {
 
   return (
     <div className="page">
+      <div className="row between"><h3 style={{ margin: '4px 0' }}>待出貨</h3><Help>{HELP.shipping}</Help></div>
       <div className="seg toolbar">
         {[['pending', '未出貨'], ['shipped', '已出貨'], ['cancelled', '已取消'], ['all', '全部']].map(([k, v]) => (
           <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>
