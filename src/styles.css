@@ -406,3 +406,10 @@ input[type='checkbox']:focus-visible { outline: 3px solid var(--honey); outline-
 .hq-table .big-cell { font-size: 20px; font-weight: 600; }
 .hq-detail { border-color: var(--tea); }
 code { font-family: var(--num); background: var(--paper); padding: 1px 6px; border-radius: 4px; user-select: all; }
+
+.listen-bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md); background: var(--paper); margin-bottom: 10px; }
+.listen-bar.on { background: var(--cherry-soft); }
+.listen-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
+.listen-bar.on .listen-dot { background: var(--cherry); animation: pulse 1.1s ease-in-out infinite; }
+.listen-text { flex: 1; font-weight: 600; font-size: 15px; }
+@keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } }

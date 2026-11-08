@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useCal
 import { onAuthStateChanged } from 'firebase/auth'
 import { collection, doc, getDoc, onSnapshot, setDoc, writeBatch } from 'firebase/firestore'
 import { auth, db } from './firebase.js'
-import { DEFAULT_SETTINGS, computeStock, skuLabel, addDays } from './lib/calc.js'
+import { DEFAULT_SETTINGS, computeStock, skuLabel, addDays, today } from './lib/calc.js'
 
 // ---------- 提示訊息 ----------
 const UiCtx = createContext(null)
@@ -171,44 +171,74 @@ const newCart = (name) => ({ id: Date.now().toString(36) + (cartSeq++), name, li
 export function CartProvider({ children }) {
   const { shopId } = useShop()
   const key = `carts:${shopId}`
+  // 客人編號：每台裝置每天從 1 開始，一直往上加，結帳後不會往回補
+  const counter = useRef({ day: today(), n: 0 })
+  const takeName = () => {
+    const d = today()
+    if (counter.current.day !== d) counter.current = { day: d, n: 0 }
+    counter.current.n += 1
+    return '客人' + counter.current.n
+  }
   const [carts, setCarts] = useState(() => [newCart('客人1')])
   const [active, setActive] = useState(0)
+  const [ready, setReady] = useState(false)
+
+  // 換日：清掉空的卡片、編號從 1 重新開始；還有品項沒結帳的卡片保留
+  const rollDay = (cs) => {
+    if (counter.current.day === today()) return cs
+    counter.current = { day: today(), n: 0 }
+    const kept = cs.filter((c) => c.lines.length)
+    return kept.length ? kept : [newCart(takeName())]
+  }
 
   useEffect(() => {
+    let cs = null
     try {
       const saved = JSON.parse(localStorage.getItem(key) || 'null')
-      if (saved?.carts?.length) { setCarts(saved.carts); setActive(Math.min(saved.active || 0, saved.carts.length - 1)) }
+      if (saved?.counter) counter.current = saved.counter
+      if (saved?.carts?.length) { cs = saved.carts; setActive(Math.min(saved.active || 0, saved.carts.length - 1)) }
     } catch { /* 忽略 */ }
+    if (!cs) { counter.current = { day: today(), n: 0 }; cs = [newCart(takeName())] }
+    const rolled = rollDay(cs)
+    if (rolled !== cs) setActive(0)
+    setCarts(rolled)
+    setReady(true)
   }, [key])
   useEffect(() => {
-    try { localStorage.setItem(key, JSON.stringify({ carts, active })) } catch { /* 忽略 */ }
-  }, [carts, active, key])
+    if (!ready) return
+    try { localStorage.setItem(key, JSON.stringify({ carts, active, counter: counter.current })) } catch { /* 忽略 */ }
+  }, [carts, active, key, ready])
+  // App 一直開著跨過午夜，或隔天從背景切回來時也會換日
+  useEffect(() => {
+    const check = () => setCarts((cs) => { const r = rollDay(cs); if (r !== cs) setActive(0); return r })
+    const id = setInterval(check, 60000)
+    document.addEventListener('visibilitychange', check)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', check) }
+  }, [])
 
-  const api = useMemo(() => {
-    const nextName = (list) => {
-      const nums = list.map((c) => Number((c.name.match(/^客人(\d+)$/) || [])[1]) || 0)
-      return '客人' + (Math.max(0, ...nums) + 1)
-    }
-    return {
-      carts, active, setActive,
-      cart: carts[active] || carts[0],
-      add: (init = {}) => {
-        setCarts((cs) => {
-          const c = { ...newCart(init.name || nextName(cs)), ...init }
-          const next = [...cs, c]
-          setActive(next.length - 1)
-          return next
-        })
-      },
-      update: (id, fn) => setCarts((cs) => cs.map((c) => (c.id === id ? fn(c) : c))),
-      remove: (id) => setCarts((cs) => {
+  const api = useMemo(() => ({
+    carts, active, setActive,
+    cart: carts[active] || carts[0],
+    today: counter.current,
+    add: (init = {}) => {
+      const name = init.name || takeName()
+      setCarts((cs) => {
+        const next = [...cs, { ...newCart(name), ...init, name }]
+        setActive(next.length - 1)
+        return next
+      })
+    },
+    update: (id, fn) => setCarts((cs) => cs.map((c) => (c.id === id ? fn(c) : c))),
+    remove: (id) => {
+      const fresh = carts.every((c) => c.id === id) ? newCart(takeName()) : null
+      setCarts((cs) => {
         const next = cs.filter((c) => c.id !== id)
-        if (!next.length) { setActive(0); return [newCart('客人1')] }
+        if (!next.length) { setActive(0); return [fresh || newCart('客人' + counter.current.n)] }
         setActive((a) => Math.min(a, next.length - 1))
         return next
       })
     }
-  }, [carts, active])
+  }), [carts, active])
 
   return <CartCtx.Provider value={api}>{children}</CartCtx.Provider>
 }

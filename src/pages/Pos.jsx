@@ -236,7 +236,7 @@ export default function Pos() {
           <div className="search-row">
             <label className="search"><Icon name="search" size={20} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜尋品項，例：SL-34 日曬" /></label>
             {s.settings.voiceEnabled && (
-              <button className="mic-btn" onClick={() => setVoiceOpen(true)} aria-label="語音點單"><Icon name="mic" size={22} />語音點單</button>
+              <button className="mic-btn" onClick={() => setVoiceOpen({ rec: startRecognizer() })} aria-label="語音點單"><Icon name="mic" size={22} />語音點單</button>
             )}
           </div>
           {searchHits ? (
@@ -363,7 +363,7 @@ export default function Pos() {
           {!s.settings.preorderEnabled && <p className="muted">預定&amp;宅配功能已關閉（可在管理頁開啟）。</p>}
         </Modal>
       )}
-      {voiceOpen && <VoiceModal cartName={cart.name} skus={activeSkus} avail={avail} onClose={() => setVoiceOpen(false)}
+      {voiceOpen && <VoiceModal rec0={voiceOpen.rec} cartName={cart.name} skus={activeSkus} avail={avail} onClose={() => setVoiceOpen(false)}
         onAdd={(items) => { addVoiceLines(items); setVoiceOpen(false) }} />}
       {qtyEdit && <QtyModal line={qtyEdit.l} max={maxQtyOf(qtyEdit.l)} onClose={() => setQtyEdit(null)}
         onSave={(n) => { setQty(qtyEdit.c, qtyEdit.l, n); setQtyEdit(null) }} />}
@@ -425,9 +425,54 @@ function OptionPicker({ picker, setPicker, skus, avail, onPick }) {
 }
 
 // ---------------- 語音點單 ----------------
-function VoiceModal({ cartName, skus, avail, onClose, onAdd }) {
+// 一鍵收音：瀏覽器支援語音辨識時，按下按鈕就直接開始聽；不支援時改用鍵盤上的麥克風
+// 必須在按鈕的點擊當下呼叫 start()，iPhone／iPad 才會允許使用麥克風
+function startRecognizer() {
+  const SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
+  if (!SR) return null
+  try {
+    const rec = new SR()
+    rec.lang = 'zh-TW'
+    rec.interimResults = true
+    rec.continuous = true
+    rec.maxAlternatives = 1
+    rec.start()
+    return rec
+  } catch { return null }
+}
+
+const SR_ERR = {
+  'not-allowed': '麥克風權限被拒絕：到「設定 → Safari → 麥克風」改成允許，或改用鍵盤上的麥克風。',
+  'service-not-allowed': '這個環境不能直接收音，請改用鍵盤上的麥克風。',
+  'no-speech': '沒有聽到聲音，請按「再說一次」。',
+  'audio-capture': '找不到麥克風。',
+  network: '語音辨識需要網路，請改用鍵盤上的麥克風。'
+}
+
+function VoiceModal({ rec0, cartName, skus, avail, onClose, onAdd }) {
   const s = useShop()
   const [text, setText] = useState('')
+  const [rec, setRec] = useState(rec0)
+  const [listening, setListening] = useState(!!rec0)
+  const [srErr, setSrErr] = useState(rec0 === null && (window.SpeechRecognition || window.webkitSpeechRecognition) ? 'service-not-allowed' : '')
+  const base = useRef('')
+  const textRef = useRef('')
+  textRef.current = text
+  useEffect(() => {
+    if (!rec) return
+    base.current = textRef.current ? textRef.current + '，' : ''
+    rec.onresult = (e) => {
+      const said = Array.from(e.results).map((r) => r[0].transcript).join('')
+      setText(base.current + said)
+    }
+    rec.onerror = (e) => { setSrErr(e.error || 'error'); setListening(false) }
+    rec.onend = () => setListening(false)
+    setListening(true)
+    return () => { try { rec.abort() } catch { /* 忽略 */ } }
+  }, [rec])
+  const again = () => { setSrErr(''); const r = startRecognizer(); if (r) setRec(r); else setSrErr('service-not-allowed') }
+  const stop = () => { try { rec?.stop() } catch { /* 忽略 */ } }
+  const canListen = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
   const [rows, setRows] = useState([])
   const vSkus = useMemo(() => skus.map((k) => ({ ...k, productName: s.productById[k.productId]?.name || '' })), [skus, s.productById])
   useEffect(() => {
@@ -444,9 +489,16 @@ function VoiceModal({ cartName, skus, avail, onClose, onAdd }) {
         <button className="primary" disabled={!ready.length || rows.some((r) => r.status === 'pick' && !r.sku)}
           onClick={() => onAdd(ready.map((r) => ({ sku: r.sku, qty: r.qty })))}>加入{cartName}（{ready.reduce((a, r) => a + r.qty, 0)} 件）</button>
       </>}>
-      <textarea className="voice-input" autoFocus rows={2} value={text} onChange={(e) => setText(e.target.value)}
-        placeholder="按鍵盤上的麥克風說出品項，例如：SL-34 日曬半磅兩包、蜂蜜一瓶" />
-      <p className="muted small">沒看到麥克風？iPad／iPhone「設定 → 一般 → 鍵盤」打開「啟用聽寫」。也可以直接打字。</p>
+      {canListen && (
+        <div className={'listen-bar' + (listening ? ' on' : '')}>
+          <span className="listen-dot" />
+          <span className="listen-text">{listening ? '正在聽，請說出品項與數量…' : srErr ? (SR_ERR[srErr] || '收音中斷，請按「再說一次」。') : '已停止收音'}</span>
+          {listening ? <button onClick={stop}>說完了</button> : <button className="primary" onClick={again}><Icon name="mic" size={18} />再說一次</button>}
+        </div>
+      )}
+      <textarea className="voice-input" autoFocus={!rec0} rows={2} value={text} onChange={(e) => setText(e.target.value)}
+        placeholder={canListen ? '聽到的內容會出現在這裡，也可以直接修改或打字' : '按鍵盤上的麥克風說出品項，例如：SL-34 日曬半磅兩包、蜂蜜一瓶'} />
+      {!canListen && <p className="muted small">沒看到麥克風？iPad／iPhone「設定 → 一般 → 鍵盤」打開「啟用聽寫」。也可以直接打字。</p>}
       <div className="voice-rows">
         {rows.map((r) => (
           <div key={r.id} className={'voice-row ' + (r.status === 'none' ? 'none' : r.sku ? 'ok' : 'pick')}>
