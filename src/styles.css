@@ -526,3 +526,8 @@ h3.cat .grip { margin-right: 4px; }
 .crop-zoom { display: flex; align-items: center; gap: 10px; }
 .crop-zoom input[type=range] { flex: 1; accent-color: var(--tea); min-height: 0; padding: 0; border: none; }
 .crop-zoom button:not(.link) { width: 42px; padding: 0; border-radius: 50%; color: var(--tea); }
+
+.small-btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.small-btn.ghost:hover:not(:disabled) { background: var(--paper); color: var(--ink); }
+.small-btn.danger-text { color: var(--cherry); }
+.cat-actions { flex-wrap: wrap; justify-content: flex-end; }

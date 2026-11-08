@@ -56,12 +56,19 @@ function ProductsTab() {
 
   const seedTemplate = () => {
     const b = writeBatch(db)
+    let added = 0
     TEMPLATE_LISTS.forEach((l, i) => {
-      if (!s.optionLists.find((x) => x.id === l.key))
-        b.set(doc(db, s.shopPath, 'optionLists', l.key), { name: l.name, values: l.values, disabled: [], order: i })
+      const cur = s.optionLists.find((x) => x.id === l.key)
+      if (!cur) { b.set(doc(db, s.shopPath, 'optionLists', l.key), { name: l.name, values: l.values, disabled: [], order: i }); added++ }
+      else {
+        // 範本新增的選項（例如生豆的 1公斤、厭氧）補進已經存在的清單，攤主自己加的保留
+        const miss = l.values.filter((v) => !cur.values.includes(v))
+        if (miss.length) { b.set(doc(db, s.shopPath, 'optionLists', l.key), { values: [...cur.values, ...miss] }, { merge: true }); added += miss.length }
+      }
     })
     TEMPLATE_PRODUCTS.forEach((p, i) => {
       if (s.products.find((x) => x.name === p.name)) return
+      added++
       const pid = s.newId(`${s.shopPath}/products`)
       b.set(doc(db, s.shopPath, 'products', pid), { ...p, active: true, order: 100 + i })
       if (!p.levels.length) {
@@ -69,8 +76,9 @@ function ProductsTab() {
         b.set(doc(db, s.shopPath, 'skus', sid), { productId: pid, opts: [], price: 0, promoPrice: null, active: true, order: 100 + i })
       }
     })
+    if (!added) return toast('範本內容都已經有了')
     commit(b)
-    toast('已載入內建範本，請設定組合與價格')
+    toast('已載入內建範本（已有的會保留），請設定組合與價格')
   }
 
   // 開賣前用：清空所有商品、組合、選項清單與初始庫存，再重新載入範本
@@ -98,12 +106,55 @@ function ProductsTab() {
     toast('已重設為內建範本')
   }
 
+  const hidden = s.settings.hiddenCats || []
+  const extra = s.settings.extraCats || []
   const grouped = useMemo(() => {
     const g = {}
-    if (s.products.length) for (const c of CATEGORY_ORDER) g[c] = []
+    if (s.products.length) for (const c of CATEGORY_ORDER) if (!hidden.includes(c)) g[c] = []
+    for (const c of extra) g[c] ||= []
     for (const p of s.products) (g[p.category || '未分類'] ||= []).push(p)
     return sortCats(Object.keys(g), s.settings.catOrder).map((c) => [c, g[c]])
-  }, [s.products, s.settings.catOrder])
+  }, [s.products, s.settings.catOrder, hidden.join('|'), extra.join('|')])
+
+  // 類別：新增、改名、刪除（只影響自己的攤位）
+  const addCat = () => {
+    const name = (prompt('新類別名稱，例如：掛耳禮盒') || '').trim()
+    if (!name) return
+    if (grouped.some(([c]) => c === name)) return toast('已經有這個類別')
+    s.saveSettings({ extraCats: [...extra, name], hiddenCats: hidden.filter((c) => c !== name) })
+  }
+  const renameCat = (cat, ps) => {
+    const name = (prompt(`把「${cat}」改名為：`, cat) || '').trim()
+    if (!name || name === cat) return
+    if (grouped.some(([c]) => c === name) && !confirm(`已經有「${name}」類別，要把「${cat}」的商品併過去嗎？`)) return
+    const b = writeBatch(db)
+    ps.forEach((p) => b.set(doc(db, s.shopPath, 'products', p.id), { category: name }, { merge: true }))
+    commit(b)
+    s.saveSettings({
+      hiddenCats: [...new Set([...hidden.filter((c) => c !== name), ...(CATEGORY_ORDER.includes(cat) ? [cat] : [])])],
+      extraCats: [...new Set([...extra.filter((c) => c !== cat), name])],
+      catOrder: (s.settings.catOrder || []).map((c) => (c === cat ? name : c))
+    })
+    toast(`已改名為「${name}」`)
+  }
+  const deleteCat = (cat, ps) => {
+    if (ps.length) {
+      const n = ps.reduce((a, p) => a + s.skus.filter((k) => k.productId === p.id).length, 0)
+      if (!confirm(`刪除類別「${cat}」，以及其中 ${ps.length} 個商品、${n} 個組合？\n已完成的銷售單不受影響。`)) return
+      const b = writeBatch(db)
+      ps.forEach((p) => {
+        s.skus.filter((k) => k.productId === p.id).forEach((k) => b.delete(doc(db, s.shopPath, 'skus', k.id)))
+        b.delete(doc(db, s.shopPath, 'products', p.id))
+      })
+      commit(b)
+    } else if (!confirm(`刪除空的類別「${cat}」？`)) return
+    s.saveSettings({
+      hiddenCats: CATEGORY_ORDER.includes(cat) ? [...new Set([...hidden, cat])] : hidden,
+      extraCats: extra.filter((c) => c !== cat),
+      catOrder: (s.settings.catOrder || []).filter((c) => c !== cat)
+    })
+    toast(`已刪除類別「${cat}」`)
+  }
 
   return (
     <div>
@@ -111,12 +162,19 @@ function ProductsTab() {
       <div className="row gap">
         <button className="primary" onClick={() => setAdding('')}>＋ 新增商品</button>
         <button onClick={seedTemplate}>載入內建範本</button>
+        <button onClick={addCat}>＋ 新增類別</button>
         {s.products.length > 0 && <span className="row"><button className="danger-outline" onClick={resetAll}>重設為內建範本</button><Help>{HELP.reset}</Help></span>}
       </div>
       <SortGroup items={grouped} onDrop={(a, b) => s.saveSettings({ catOrder: moveItem(grouped.map(([c]) => c), a, b) })}>
       {([cat, ps], ci, catGrip) => (
         <section key={cat} data-sort className="cat-section">
-          <h3 className="cat row between"><span className="row">{catGrip}{cat}</span><button className="small-btn" onClick={() => setAdding(cat)}>＋ 新增到{cat}</button></h3>
+          <h3 className="cat row between"><span className="row">{catGrip}{cat}</span>
+            <span className="row gap cat-actions">
+              <button className="small-btn ghost" onClick={() => renameCat(cat, ps)}>改名</button>
+              <button className="small-btn ghost danger-text" onClick={() => deleteCat(cat, ps)}>刪除</button>
+              <button className="small-btn" onClick={() => setAdding(cat)}>＋ 新增到{cat}</button>
+            </span>
+          </h3>
           {!ps.length && <p className="muted">{CATEGORY_HINT[cat] || '此類別沒有商品'}</p>}
           <SortGroup items={ps} onDrop={(a, b) => reorderTo(s.shopPath, 'products', ps, a, b)}>
             {(p, i, grip) => (
@@ -139,7 +197,7 @@ function ProductForm({ product, onClose, initialCategory = '' }) {
   const [f, setF] = useState(product || { name: '', category: initialCategory, unit: initialCategory === '周邊產品' ? '個' : initialCategory === '套裝組合' ? '組' : '包', levels: [], trackStock: true, active: true })
   const mySkus = product ? s.skus.filter((k) => k.productId === product.id) : []
   const hasCombos = mySkus.some((k) => (k.opts || []).length)
-  const cats = sortCats([...new Set([...s.products.map((p) => p.category), ...CATEGORY_ORDER])].filter(Boolean), s.settings.catOrder)
+  const cats = sortCats([...new Set([...s.products.map((p) => p.category), ...CATEGORY_ORDER.filter((c) => !(s.settings.hiddenCats || []).includes(c)), ...(s.settings.extraCats || [])])].filter(Boolean), s.settings.catOrder)
   const levelsNow = f.levels.filter(Boolean)
   const levelsChanged = product && levelsNow.join('|') !== (product.levels || []).filter(Boolean).join('|')
   const save = () => {

@@ -1,15 +1,15 @@
 // 內建品項範本
 export const TEMPLATE_LISTS = [
   { key: 'variety', name: '品種', values: ['SL-34', '波旁', '鐵皮卡', '索恩娜', '藝伎'] },
-  { key: 'process', name: '處理法', values: ['水洗', '蜜處理', '日曬'] },
-  { key: 'weight', name: '重量', values: ['1/4磅', '1/2磅'] },
+  { key: 'process', name: '處理法', values: ['水洗', '蜜處理', '日曬', '厭氧', '二氧化碳浸漬'] },
+  { key: 'weight', name: '重量', values: ['1/4磅', '1/2磅', '1公斤', '3公斤', '5公斤'] },
   { key: 'pack', name: '包裝', values: ['單包', '一盒'] },
   { key: 'tea', name: '茶種', values: ['烏龍', '金萱', '紅茶'] },
   { key: 'native', name: '原生山茶', values: ['白茶', '紅茶'] }
 ]
 
 // 類別顯示順序；「周邊產品」預設是空的，讓攤主自由新增
-export const CATEGORY_ORDER = ['咖啡豆', '濾掛', '茶葉', '咖啡周邊茶', '其他', '周邊產品', '套裝組合', '現場飲品']
+export const CATEGORY_ORDER = ['咖啡豆', '生豆', '濾掛', '茶葉', '咖啡周邊茶', '其他', '周邊產品', '套裝組合', '現場飲品']
 // 類別排序：攤主拖曳過的順序優先，其次內建順序
 export const sortCats = (cats, custom = []) => [...cats].sort((a, b) => {
   const ci = custom.indexOf(a), cj = custom.indexOf(b)
@@ -20,6 +20,7 @@ export const sortCats = (cats, custom = []) => [...cats].sort((a, b) => {
 
 export const TEMPLATE_PRODUCTS = [
   { name: '咖啡豆', category: '咖啡豆', unit: '包', levels: ['variety', 'process', 'weight'], trackStock: true },
+  { name: '生豆', category: '生豆', unit: '袋', levels: ['variety', 'process', 'weight'], trackStock: true },
   { name: '濾掛', category: '濾掛', unit: '包', levels: ['process', 'pack'], trackStock: true },
   { name: '茶葉', category: '茶葉', unit: '包', levels: ['tea', 'weight'], trackStock: true },
   { name: '原生山茶', category: '茶葉', unit: '包', levels: ['native', 'weight'], trackStock: true },
@@ -36,7 +37,7 @@ export const CASH_REASONS = ['找錯錢', '換零錢', '其他']
 
 // 類別顏色：收銀畫面用來快速辨識品項
 export const CATEGORY_COLOR = {
-  咖啡豆: '#6f4a2f', 濾掛: '#b7791f', 茶葉: '#2f6b4f', 茶: '#2f6b4f', 套裝組合: '#8b4f8f', 咖啡周邊茶: '#b4343f',
+  咖啡豆: '#6f4a2f', 生豆: '#6b7d2c', 濾掛: '#b7791f', 茶葉: '#2f6b4f', 茶: '#2f6b4f', 套裝組合: '#8b4f8f', 咖啡周邊茶: '#b4343f',
   其他: '#c79a1b', 周邊產品: '#4a5f7a', 現場飲品: '#2b6c8f'
 }
 export const catColor = (c) => (c === '熱賣' ? '#b4343f' : CATEGORY_COLOR[c] || '#5b6b62')
@@ -44,6 +45,7 @@ export const catColor = (c) => (c === '熱賣' ? '#b4343f' : CATEGORY_COLOR[c] |
 // 各類別空白時的說明
 export const CATEGORY_HINT = {
   周邊產品: '自由新增周邊產品，例如杯子、濾杯、帆布袋。',
+  生豆: '生豆：品種 × 處理法 × 重量（1公斤、3公斤、5公斤），其他重量可到「選項清單 → 重量」自己新增。',
   套裝組合: '優惠組合（例：A＋B＋C 特價）：新增商品後，在組合表格的「組成」選擇內含的品項，賣出時自動扣各品項庫存。'
 }
 
