@@ -67,7 +67,7 @@ function Shell() {
   return (
     <div className="shell" style={{ '--top-bg': s.settings.themeColor || '#183d2e', '--top-fg': textOn(s.settings.themeColor || '#183d2e') }}>
       <header className="top">
-        <span className="brand"><Icon name="leaf" size={20} />{s.shop?.name || '出攤記帳'}</span>
+        <span className="brand">{s.shop?.logo ? <img className="brand-logo" src={s.shop.logo} alt="" /> : <Icon name="leaf" size={20} />}{s.shop?.name || '出攤記帳'}</span>
         <span className="event">{s.event?.name || '未選擇場次'}</span>
         <span className={'net ' + (online ? 'on' : 'off')}><i />{online ? '已連線' : '離線中，連線後自動同步'}</span>
       </header>

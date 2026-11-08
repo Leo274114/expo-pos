@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { collection, getDocs, doc, writeBatch } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '../firebase.js'
@@ -7,6 +7,8 @@ import { TEMPLATE_LISTS, TEMPLATE_PRODUCTS, ADJUST_REASONS, CATEGORY_ORDER, CATE
 import { preIndex, componentAvail, fmt, PAY_TYPE_LABEL, skuLabel, today, dayOf, timeOf } from '../lib/calc.js'
 import { exportEventExcel } from '../lib/excel.js'
 import Modal from '../components/Modal.jsx'
+import { useSearchParams } from 'react-router-dom'
+import SortGroup, { moveItem } from '../components/SortGroup.jsx'
 import Icon from '../components/Icon.jsx'
 import { VERSION, CHANGELOG } from '../version.js'
 import { aliasesToText, textToAliases } from '../lib/voice.js'
@@ -16,7 +18,9 @@ import { HELP } from '../lib/help.js'
 const TABS = ['商品與價格', '選項清單', '展覽場次', '庫存調整', '功能設定', '資料下載', `版本 ${VERSION}`]
 
 export default function Admin() {
-  const [tab, setTab] = useState(0)
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState(() => Math.min(TABS.length - 1, Math.max(0, Number(params.get('tab')) || 0)))
+  useEffect(() => { const n = Number(params.get('tab')); if (!Number.isNaN(n) && params.get('tab') !== null) setTab(n) }, [params])
   return (
     <div className="page admin">
       <div className="tabs toolbar">
@@ -35,25 +39,12 @@ export default function Admin() {
   )
 }
 
-// 上下移動順序：把清單重新編號後寫回 order
-function reorder(shopPath, coll, list, item, dir) {
-  const i = list.findIndex((x) => x.id === item.id)
-  const j = i + dir
-  if (i < 0 || j < 0 || j >= list.length) return
-  const next = [...list]
-  ;[next[i], next[j]] = [next[j], next[i]]
+// 拖曳排序後：依新順序重新編號寫回 order
+function reorderTo(shopPath, coll, list, from, to) {
+  const next = moveItem(list, from, to)
   const b = writeBatch(db)
   next.forEach((x, k) => { if (x.order !== (k + 1) * 10) b.set(doc(db, shopPath, coll, x.id), { order: (k + 1) * 10 }, { merge: true }) })
   commit(b)
-}
-
-function MoveBtns({ onUp, onDown, first, last }) {
-  return (
-    <span className="move" onClick={(e) => e.stopPropagation()}>
-      <button className="mv" disabled={first} onClick={onUp} aria-label="上移">▲</button>
-      <button className="mv" disabled={last} onClick={onDown} aria-label="下移">▼</button>
-    </span>
-  )
 }
 
 // ---------------- 商品與價格 ----------------
@@ -126,11 +117,13 @@ function ProductsTab() {
         <section key={cat}>
           <h3 className="cat row between">{cat}<button className="small-btn" onClick={() => setAdding(cat)}>＋ 新增到{cat}</button></h3>
           {!ps.length && <p className="muted">{CATEGORY_HINT[cat] || '此類別沒有商品'}</p>}
-          {ps.map((p, i) => (
-            <ProductCard key={p.id} p={p} open={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)}
-              move={<MoveBtns first={i === 0} last={i === ps.length - 1}
-                onUp={() => reorder(s.shopPath, 'products', ps, p, -1)} onDown={() => reorder(s.shopPath, 'products', ps, p, 1)} />} />
-          ))}
+          <SortGroup items={ps} onDrop={(a, b) => reorderTo(s.shopPath, 'products', ps, a, b)}>
+            {(p, i, grip) => (
+              <div key={p.id} data-sort>
+                <ProductCard p={p} open={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)} move={grip} />
+              </div>
+            )}
+          </SortGroup>
         </section>
       ))}
       {!s.products.length && <p className="muted">還沒有商品。可以先「載入內建範本」，再修改。</p>}
@@ -289,14 +282,13 @@ function SkuTable({ product, skus }) {
         <thead>
           <tr><th></th><th>組合</th><th>定價</th><th>活動價<Help>{HELP.promoPrice}</Help></th>{showStock && <><th>初始庫存<Help>{HELP.initStock}</Help></th><th>目前</th></>}<th>組成<Help>{HELP.components}</Help></th><th>啟用</th><th></th></tr>
         </thead>
-        <tbody>
-          {skus.map((k, i) => {
+        <SortGroup as="tbody" items={skus} onDrop={(a, b) => reorderTo(s.shopPath, 'skus', skus, a, b)}>
+          {(k, i, grip) => {
             const comps = k.components || []
             const canMake = comps.length ? componentAvail(comps, (id) => (tracked(id) ? s.stock[id] ?? 0 : Infinity)) : null
             return (
-              <tr key={k.id} className={k.active === false ? 'off' : ''}>
-                <td><MoveBtns first={i === 0} last={i === skus.length - 1}
-                  onUp={() => reorder(s.shopPath, 'skus', skus, k, -1)} onDown={() => reorder(s.shopPath, 'skus', skus, k, 1)} /></td>
+              <tr key={k.id} data-sort className={k.active === false ? 'off' : ''}>
+                <td>{grip}</td>
                 <td>{(k.opts || []).join('・') || product.name}</td>
                 <td><NumCell value={k.price} onSave={(v) => setSku(k.id, { price: Number(v) || 0 })} /></td>
                 <td><NumCell value={k.promoPrice ?? ''} placeholder="無" onSave={(v) => setSku(k.id, { promoPrice: v === '' ? null : Number(v) })} /></td>
@@ -320,8 +312,8 @@ function SkuTable({ product, skus }) {
                 <td><button className="icon" onClick={() => del(k)} aria-label="刪除"><Icon name="trash" size={20} /></button></td>
               </tr>
             )
-          })}
-        </tbody>
+          }}
+        </SortGroup>
       </table>
       {compFor && <ComponentsModal sku={compFor} product={product} onClose={() => setCompFor(null)}
         onSave={(components) => { setSku(compFor.id, { components }); setCompFor(null) }} />}
@@ -584,6 +576,9 @@ function SettingsTab() {
         <input value={name} onChange={(e) => setName(e.target.value)}
           onBlur={() => commit(writeBatch(db).set(doc(db, s.shopPath), { name }, { merge: true }))} />
       </label>
+
+      <h4>攤位 Logo<Help>{HELP.logo}</Help></h4>
+      <LogoUpload logo={s.shop?.logo} onSave={(logo) => commit(writeBatch(db).set(doc(db, s.shopPath), { logo }, { merge: true }))} />
       <h4>畫面上方顏色<Help>{HELP.theme}</Help></h4>
       <div className="theme-row">
         {THEME_PRESETS.map((x) => (
@@ -710,6 +705,42 @@ function PromoEditor({ promos, onSave }) {
         </div>
       ))}
       <button onClick={() => save([...list, { id: Date.now().toString(36), threshold: 0, text: '', repeat: false, on: true }])}>＋ 新增滿額活動</button>
+    </div>
+  )
+}
+
+// 攤位 Logo：上傳後在手機上縮小到 256px，存進攤位資料（不需要另外的圖片空間）
+function LogoUpload({ logo, onSave }) {
+  const [err, setErr] = useState('')
+  const pick = (e) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    if (!f.type.startsWith('image/')) return setErr('請選擇圖片檔')
+    setErr('')
+    const url = URL.createObjectURL(f)
+    const img = new Image()
+    img.onload = () => {
+      const max = 256
+      const r = Math.min(1, max / Math.max(img.width, img.height))
+      const c = document.createElement('canvas')
+      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r)
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+      let data = c.toDataURL('image/png')
+      if (data.length > 180000) data = c.toDataURL('image/jpeg', 0.85)
+      URL.revokeObjectURL(url)
+      if (data.length > 400000) return setErr('圖片太大，請換一張小一點的')
+      onSave(data)
+    }
+    img.onerror = () => setErr('讀不到這張圖片')
+    img.src = url
+  }
+  return (
+    <div className="logo-row">
+      <div className="logo-preview">{logo ? <img src={logo} alt="攤位 Logo" /> : <span className="muted small">尚未上傳</span>}</div>
+      <label className="file-btn">{logo ? '更換圖片' : '上傳圖片'}<input type="file" accept="image/*" onChange={pick} /></label>
+      {logo && <button className="danger-outline" onClick={() => { if (confirm('移除 Logo？')) onSave(null) }}>移除</button>}
+      {err && <span className="neg small">{err}</span>}
     </div>
   )
 }

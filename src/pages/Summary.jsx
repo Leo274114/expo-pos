@@ -99,6 +99,14 @@ export default function Summary() {
 
       <div className="card">
         <div className="row between wrap">
+          <h4>熱賣排行（前 10 名）</h4>
+          <span className="muted small">{scope === 'event' ? '整個展期' : day === today() ? '今天' : day.slice(5).replace('-', '/')}・依銷售數量</span>
+        </div>
+        <HotRank rows={rows} />
+      </div>
+
+      <div className="card">
+        <div className="row between wrap">
           <h4>各品項銷售數量</h4>
           <div className="seg small-seg">
             <button className={scope === 'day' ? 'on' : ''} onClick={() => setScope('day')}>{day === today() ? '今天' : day.slice(5).replace('-', '/')}</button>
@@ -159,6 +167,26 @@ export default function Summary() {
           </table>
         </div>
       </div>
+    </div>
+  )
+}
+
+// 熱賣排行：橫條長度代表銷售數量，進場時由左往右長出
+function HotRank({ rows }) {
+  const top = [...rows].filter((x) => x.qty > 0).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 10)
+  if (!top.length) return <p className="muted">還沒有銷售</p>
+  const max = top[0].qty
+  return (
+    <div className="hot-rank-list">
+      {top.map((x, i) => (
+        <div key={x.skuId} className="hr-row">
+          <span className={'hr-no' + (i < 3 ? ' top' : '')}>{i + 1}</span>
+          <span className="hr-name">{x.name}</span>
+          <span className="hr-bar"><i style={{ width: `${(x.qty / max) * 100}%`, animationDelay: `${i * 50}ms` }} /></span>
+          <span className="hr-qty num">{x.qty}</span>
+          <span className="hr-amt num">{fmt(x.amount)}</span>
+        </div>
+      ))}
     </div>
   )
 }

@@ -10,6 +10,7 @@ import Modal from '../components/Modal.jsx'
 import { sortCats, catColor } from '../lib/template.js'
 import { parseOrder } from '../lib/voice.js'
 import Icon from '../components/Icon.jsx'
+import Onboarding from '../components/Onboarding.jsx'
 import Help from '../components/Help.jsx'
 import { HELP } from '../lib/help.js'
 
@@ -28,6 +29,7 @@ export default function Pos() {
   const [priceEdit, setPriceEdit] = useState(null) // line
   const [qtyEdit, setQtyEdit] = useState(null) // { c, l }
   const [voiceOpen, setVoiceOpen] = useState(false)
+  const [flash, setFlash] = useState(null) // 剛加入的品項，用來做亮一下的回饋
   const [discountOpen, setDiscountOpen] = useState(false)
   const [checkout, setCheckout] = useState(false)
   const [cartOpen, setCartOpen] = useState(false) // 手機版購物車展開
@@ -37,7 +39,22 @@ export default function Pos() {
     [s.skus, s.productById]
   )
   const products = s.products.filter((p) => p.active !== false && activeSkus.some((k) => k.productId === p.id))
-  const cats = sortCats([...new Set(products.map((p) => p.category || '未分類'))])
+  // 熱賣：今天賣最多的 8 樣（今天還沒賣就用整個展期）
+  const hot = useMemo(() => {
+    const count = (list) => {
+      const m = {}
+      for (const o of list) {
+        if (o.status === 'void' || (o.type !== 'sale' && o.type !== 'exchange')) continue
+        for (const it of o.items || []) if (!it.pre) m[it.skuId] = (m[it.skuId] || 0) + it.qty
+      }
+      return m
+    }
+    let m = count(s.orders.filter((o) => o.day === dayOf(Date.now())))
+    if (!Object.keys(m).length) m = count(s.orders)
+    const ok = new Set(activeSkus.map((k) => k.id))
+    return Object.entries(m).filter(([id]) => ok.has(id)).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([id, n]) => ({ sku: s.skuById[id], n }))
+  }, [s.orders, activeSkus, s.skuById])
+  const cats = [...(hot.length ? ['熱賣'] : []), ...sortCats([...new Set(products.map((p) => p.category || '未分類'))])]
   const curCat = cats.includes(cat) ? cat : cats[0]
 
   // 所有暫存單中已佔用的數量（現貨）
@@ -62,6 +79,7 @@ export default function Pos() {
   const updateLines = (fn, cartId = cart.id) => cs.update(cartId, (c) => ({ ...c, lines: fn(c.lines) }))
 
   const pushLine = (sku, qty, pre) => {
+    setFlash({ skuId: sku.id, pre: !!pre, n: Date.now() })
     const product = s.productById[sku.productId]
     const price = effectivePrice(sku)
     updateLines((lines) => {
@@ -216,7 +234,7 @@ export default function Pos() {
     window.addEventListener('pointerup', up)
   }
 
-  if (!s.eventId) return <div className="page"><div className="warn">請先到「管理」建立展覽場次。</div></div>
+  if (!s.eventId || !activeSkus.some((k) => Number(k.price) > 0)) return <div className="page"><Onboarding /></div>
 
   const searchHits = q.trim()
     ? activeSkus.map((k) => ({ k, label: skuLabel(k, s.productById[k.productId]) })).filter((x) => x.label.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 40)
@@ -254,7 +272,13 @@ export default function Pos() {
                 {cats.map((c) => <button key={c} className={c === curCat ? 'on' : ''} style={{ '--cat': catColor(c) }} onClick={() => setCat(c)}><i className="swatch" />{c}</button>)}
               </div>
               <div className="grid">
-                {products.filter((p) => (p.category || '未分類') === curCat).map((p) => {
+                {curCat === '熱賣' && hot.map(({ sku, n }, i) => (
+                  <div key={sku.id} className="hot-wrap">
+                    <span className="hot-rank">{i + 1}</span>
+                    <SkuButton sku={sku} label={skuLabel(sku, s.productById[sku.productId])} cat={s.productById[sku.productId]?.category} avail={avail(sku)} onClick={() => addSku(sku)} />
+                  </div>
+                ))}
+                {curCat !== '熱賣' && products.filter((p) => (p.category || '未分類') === curCat).map((p) => {
                   const ks = activeSkus.filter((k) => k.productId === p.id)
                   const single = !(p.levels || []).length && ks.length === 1
                   if (single) return <SkuButton key={p.id} sku={ks[0]} label={p.name} cat={p.category} avail={avail(ks[0])} onClick={() => addSku(ks[0])} />
@@ -300,6 +324,7 @@ export default function Pos() {
                   {c.refOrderId && <div className="hint">退換貨：退回品項已帶入，可再加入換出的品項。</div>}
                   {c.lines.map((l) => (
                     <div key={l.key} className={'cart-line' + (l.ret ? ' ret' : '') + (l.pre ? ' pre' : '')}>
+                      {flash && ci === cs.active && flash.skuId === l.skuId && flash.pre === !!l.pre && !l.ret && <span className="flash-bg" key={flash.n} />}
                       <div className="cl-name">
                         {l.ret && <span className="badge red">退回</span>}
                         {l.pre && <span className="badge blue">預定</span>}
@@ -336,11 +361,11 @@ export default function Pos() {
           <div className="cart-foot">
             <div className="row between"><span>小計</span><span>{fmt(t.subtotal)}</span></div>
             <div className="row between">
-              <button className="link" onClick={() => setDiscountOpen(true)}>整單折扣{cart.discount?.value ? (cart.discount.type === 'percent' ? `（${cart.discount.value} 折）` : '') : '＋'}</button><Help>{HELP.discount}</Help>
+              <span className="row"><button className="link" onClick={() => setDiscountOpen(true)}>整單折扣{cart.discount?.value ? (cart.discount.type === 'percent' ? `（${cart.discount.value} 折）` : '') : '＋'}</button><Help>{HELP.discount}</Help></span>
               <span>{t.discountAmt ? '-' + fmt(t.discountAmt) : ''}</span>
             </div>
             {t.retTotal > 0 && <div className="row between"><span>退回</span><span>-{fmt(t.retTotal)}</span></div>}
-            <div className="row between total"><span>合計</span><span className="num big-num">{fmt(t.total)}</span></div>
+            <div className="row between total"><span>合計</span><span className="num big-num total-pop" key={t.total}>{fmt(t.total)}</span></div>
             {!cart.refOrderId && (() => {
               const amt = Math.max(0, t.subtotal - t.discountAmt)
               const got = promoHits(amt, s.settings.promos || [])
@@ -687,7 +712,6 @@ function Checkout({ cart, onClose, onDone }) {
     onDone()
   }
 
-  const quick = [...new Set([due, 100, 500, 1000, 2000].filter((x) => x >= due))].slice(0, 5)
 
   return (
     <Modal title={isRet ? (hasOut ? '換貨結帳' : '退貨') : '結帳'} onClose={onClose} wide
@@ -760,19 +784,33 @@ function Checkout({ cart, onClose, onDone }) {
           )}
           {method === 'linepay' && due < 0 && <p className="warn">請到 LINE Pay 商家後台操作退款。</p>}
           {method === 'cash' && due > 0 && (
-            <div className="box">
-              <label>收款金額
-                <input className="num big" inputMode="numeric" value={received} onChange={(e) => setReceived(e.target.value.replace(/[^\d]/g, ''))} placeholder={String(due)} />
-              </label>
-              <div className="chips">
-                {quick.map((x) => <button key={x} className="chip" onClick={() => setReceived(String(x))}>{x === due ? '剛好' : fmt(x)}</button>)}
-              </div>
-              {received !== '' && rec >= due && (
-                <div className="change">
-                  找零 <b>{fmt(change)}</b>
-                  {change > 0 && <div className="muted">{changeBreakdown(change, denoms).parts.map(([d, n]) => `${d}×${n}`).join('　')}</div>}
+            <div className="cash-pad">
+              <div className="pad-left">
+                <div className="pad-display">
+                  <span>收款</span>
+                  <b className="num">{received === '' ? <span className="ph">{fmt(due)}</span> : fmt(rec)}</b>
                 </div>
-              )}
+                <div className={'pad-change' + (received !== '' && rec < due ? ' short' : '')}>
+                  <span>{received !== '' && rec < due ? '還差' : '找零'}</span>
+                  <b className="num">{received === '' ? fmt(0) : fmt(Math.abs(rec - due))}</b>
+                </div>
+                {received !== '' && change > 0 && (
+                  <div className="muted small">建議找法：{changeBreakdown(change, denoms).parts.map(([d, n]) => `${d}×${n}`).join('　')}</div>
+                )}
+                <div className="bills">
+                  <button onClick={() => setReceived(String(due))}>剛好</button>
+                  {[100, 500, 1000].map((x) => (
+                    <button key={x} onClick={() => setReceived(String((received === '' ? 0 : rec) + x))}>＋{x}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="keypad">
+                {['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', '⌫'].map((k) => (
+                  <button key={k} className={k === '⌫' ? 'back' : ''}
+                    onClick={() => setReceived((r) => (k === '⌫' ? r.slice(0, -1) : (r + k).replace(/^0+(?=\d)/, '').slice(0, 7)))}>{k}</button>
+                ))}
+                <button className="clear" onClick={() => setReceived('')}>清除</button>
+              </div>
             </div>
           )}
         </>

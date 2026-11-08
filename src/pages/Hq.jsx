@@ -82,7 +82,7 @@ export default function Hq() {
             <tbody>
               {all.map((x) => (
                 <tr key={x.id} className={pick?.shopId === x.id ? 'on' : ''}>
-                  <td><b>{x.name || '（未命名）'}</b>{x.id === s.shopId && <span className="badge">我</span>}</td>
+                  <td>{x.logo && <img className="hq-logo" src={x.logo} alt="" />}<b>{x.name || '（未命名）'}</b>{x.id === s.shopId && <span className="badge">我</span>}</td>
                   <td className="muted small">{x.ownerEmail || '—'}</td>
                   <td>{x.cur ? `${x.cur.name}` : <span className="muted">尚未建立</span>}</td>
                   <td className="num big-cell">{fmt(x.total)}</td>

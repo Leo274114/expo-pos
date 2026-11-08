@@ -36,7 +36,7 @@ export const CATEGORY_COLOR = {
   咖啡豆: '#6f4a2f', 濾掛: '#b7791f', 茶葉: '#2f6b4f', 茶: '#2f6b4f', 套裝組合: '#8b4f8f', 咖啡周邊茶: '#b4343f',
   其他: '#c79a1b', 周邊產品: '#4a5f7a', 現場飲品: '#2b6c8f'
 }
-export const catColor = (c) => CATEGORY_COLOR[c] || '#5b6b62'
+export const catColor = (c) => (c === '熱賣' ? '#b4343f' : CATEGORY_COLOR[c] || '#5b6b62')
 
 // 各類別空白時的說明
 export const CATEGORY_HINT = {
