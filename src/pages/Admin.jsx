@@ -6,6 +6,7 @@ import { useShop, useUi, commit, deviceId } from '../store.jsx'
 import { TEMPLATE_LISTS, TEMPLATE_PRODUCTS, ADJUST_REASONS, CATEGORY_ORDER, CATEGORY_HINT, sortCats, THEME_PRESETS, textOn } from '../lib/template.js'
 import { preIndex, componentAvail, fmt, PAY_TYPE_LABEL, skuLabel, today, dayOf, timeOf } from '../lib/calc.js'
 import { exportEventExcel, exportPriceList, priceListRows } from '../lib/excel.js'
+import DriveBackup from '../components/DriveBackup.jsx'
 import Modal from '../components/Modal.jsx'
 import { useSearchParams } from 'react-router-dom'
 import SortGroup, { moveItem } from '../components/SortGroup.jsx'
@@ -729,6 +730,9 @@ function DataTab() {
           <button className="primary" onClick={() => exportEventExcel(s).then((ok) => ok && toast('已下載')).catch((e) => toast('下載失敗：' + e.message, { kind: 'error' }))}>
             下載 Excel（.xlsx）
           </button>
+          <hr />
+          <h4>上傳 Google 雲端</h4>
+          <DriveBackup />
         </>
       ) : <p className="muted">尚未選擇場次</p>}
       <hr />

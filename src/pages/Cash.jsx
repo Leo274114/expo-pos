@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { doc, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useShop, useUi, commit, deviceId } from '../store.jsx'
@@ -8,9 +8,13 @@ import DaySelect from '../components/DaySelect.jsx'
 import Help from '../components/Help.jsx'
 import { HELP } from '../lib/help.js'
 import { SupplyLeftReminder } from '../components/Supplies.jsx'
+import DriveBackup from '../components/DriveBackup.jsx'
+import { hasDriveToken, uploadEventToDrive } from '../lib/gdrive.js'
 
 export default function Cash() {
+  const sRef = useRef(null)
   const s = useShop()
+  sRef.current = s
   const ui = useUi()
   const [day, setDay] = useState(today())
   const [amt, setAmt] = useState('')
@@ -28,6 +32,14 @@ export default function Cash() {
   const saveCount = (kind, counts) => {
     commit(writeBatch(db).set(doc(db, s.eventPath, 'cashCounts', `${day}_${kind}`), { day, kind, counts, ts: Date.now(), device: deviceId }))
     ui.toast(kind === 'open' ? '已儲存開店零用金' : (s.event?.end && day >= s.event.end ? '已儲存收攤點算。最後一天了，別忘了點耗材剩多少' : '已儲存收攤點算'), { kind: 'ok', ms: 5000 })
+    // 收攤後自動更新 Google 雲端：授權還有效才自動傳，否則下方顯示按鈕讓攤商自己按
+    if (kind === 'close' && navigator.onLine && hasDriveToken()) {
+      setTimeout(() => {
+        uploadEventToDrive(sRef.current)
+          .then(() => ui.toast('已自動更新 Google 雲端備份', { kind: 'ok' }))
+          .catch((e) => ui.toast('自動備份沒成功：' + e.message + '，請按「更新 Google 雲端」', { kind: 'error', ms: 7000 }))
+      }, 1500)
+    }
   }
   const addMove = () => {
     const a = Number(amt)
@@ -48,6 +60,12 @@ export default function Cash() {
       ) : <p className="muted">零錢數量管理已關閉，只計算現金總額。</p>}
 
       {s.settings.cashCount && close && <SupplyLeftReminder day={day} />}
+      {(close || !s.settings.cashCount) && (
+        <div className="card">
+          <h4 style={{ marginTop: 0 }}>備份到 Google 雲端</h4>
+          <DriveBackup compact note="收攤了，更新一下雲端備份，資料就存在你自己的 Google 雲端硬碟。" />
+        </div>
+      )}
       {!s.settings.cashCount && <SupplyLeftReminder day={day} />}
 
       <div className="card recon">

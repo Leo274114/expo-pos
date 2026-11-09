@@ -37,13 +37,54 @@ export async function exportEventExcel(s) {
   if (target === 'cancel') return false
   const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
-  const add = (name, rows) => {
+  for (const [sheet, rows] of eventSheets(s)) {
     const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 說明: '無資料' }])
     const keys = Object.keys(rows[0] || { 說明: '' })
     ws['!cols'] = keys.map((k) => ({ wch: Math.max(8, Math.min(40, Math.max(k.length * 2, ...rows.map((r) => String(r[k] ?? '').length * 1.6)))) }))
-    XLSX.utils.book_append_sheet(wb, ws, name)
+    XLSX.utils.book_append_sheet(wb, ws, sheet)
   }
+  await saveWorkbook(XLSX, wb, name, target)
+  markDownloaded(s)
+  return true
+}
+
+// 場次已下載／已備份：總覽的清除清單亮綠燈
+export function markDownloaded(s, extra = {}) {
+  if (!s.eventPath) return
+  try { s.batch().set(s.ref(s.eventPath), { downloadedAt: Date.now(), ...extra }, { merge: true }).commit().catch(() => {}) } catch { /* 忽略 */ }
+}
+
+// 整個場次的所有工作表：[[名稱, 列資料], ...]（Excel 與 Google 雲端共用）
+export function eventSheets(s) {
+  const out = []
+  const add = (name, rows) => out.push([name, rows])
   const orders = [...s.orders].sort((a, b) => a.ts - b.ts)
+  const allDays = [...new Set([...daysBetween(s.event?.start, s.event?.end), ...orders.map((o) => o.day)])].filter(Boolean).sort()
+
+  // 展期總覽：每天一列＋合計
+  const ov = allDays.map((d) => {
+    const r = summarize(orders, d)
+    return { 日期: d, 營業額: r.revenue.total, 現金: r.revenue.cash || 0, 'LINE Pay': r.revenue.linepay || 0, 客人數: r.orderCount, 折扣總額: r.discountTotal, 退貨金額: r.refundTotal, 運費收入: r.shipTotal }
+  })
+  const tot = summarize(orders)
+  ov.push({ 日期: '整個展期', 營業額: tot.revenue.total, 現金: tot.revenue.cash || 0, 'LINE Pay': tot.revenue.linepay || 0, 客人數: tot.orderCount, 折扣總額: tot.discountTotal, 退貨金額: tot.refundTotal, 運費收入: tot.shipTotal })
+  add('展期總覽', ov)
+
+  // 每小時營業額（尖峰）：每列一個時段，每欄一天
+  const perDay = allDays.map((d) => [d, summarize(orders, d).hourly])
+  const hs = perDay.flatMap(([, h]) => Object.keys(h).map(Number))
+  const h0 = Math.min(10, ...hs), h1 = Math.max(18, ...hs)
+  const hourRows = []
+  for (let h = h0; h <= h1; h++) {
+    const row = { 時段: `${String(h).padStart(2, '0')}:00` }
+    for (const [d, hh] of perDay) row[d.slice(5).replace('-', '/')] = hh[h] || 0
+    hourRows.push(row)
+  }
+  add('每小時營業額', hourRows)
+
+  // 商品價格（下載當時的定價與活動價）
+  add('商品價格', priceListRows(s))
+
   const no = Object.fromEntries(orders.map((o, i) => [o.id, i + 1]))
   const status = (o) => (o.status === 'void' ? '已作廢' : '')
 
@@ -133,11 +174,7 @@ export async function exportEventExcel(s) {
     }
   }))
 
-  await saveWorkbook(XLSX, wb, name, target)
-  if (s.eventPath) {
-    try { s.batch().set(s.ref(s.eventPath), { downloadedAt: Date.now() }, { merge: true }).commit().catch(() => {}) } catch { /* 忽略 */ }
-  }
-  return true
+  return out
 }
 
 const fmtCounts = (c = {}) => Object.entries(c).filter(([, n]) => Number(n)).sort((a, b) => b[0] - a[0]).map(([d, n]) => `${d}×${n}`).join(' ')

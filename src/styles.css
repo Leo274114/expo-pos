@@ -603,3 +603,4 @@ input.need { border-color: var(--cherry) !important; }
 /* 捲動到才播放：還沒看到時動畫停在第一格 */
 .await-view .bar, .await-view .chart-val, .await-view .line-anim, .await-view .line-dot, .await-view .hr-bar i { animation-play-state: paused; }
 .await-view.inview .bar, .await-view.inview .chart-val, .await-view.inview .line-anim, .await-view.inview .line-dot, .await-view.inview .hr-bar i { animation-play-state: running; }
+.drive-backup a { font-weight: 600; }
