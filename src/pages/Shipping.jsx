@@ -31,14 +31,14 @@ export default function Shipping() {
       money: amount ? { method, amount: kind === 'collect' ? amount : -amount } : { method: null, amount: 0 }
     })
     commit(b)
-    ui.toast(kind === 'collect' ? `已收尾款 ${fmt(amount)}` : `已取消預定${amount ? `，退款 ${fmt(amount)}` : ''}`, { kind: 'ok' })
+    ui.toast(kind === 'collect' ? `已收尾款 ${fmt(amount)}` : `已取消預購${amount ? `，退款 ${fmt(amount)}` : ''}`, { kind: 'ok' })
     setMoney(null)
   }
 
   return (
     <div className="page">
       <div className="toolbar">
-        <div className="row between"><h3 style={{ margin: '0 0 8px' }}>預約單</h3><Help>{HELP.shipping}</Help></div>
+        <div className="row between"><h3 style={{ margin: '0 0 8px' }}>預購單</h3><Help>{HELP.shipping}</Help></div>
         <div className="seg" style={{ margin: 0 }}>
         {[['pending', '未出貨'], ['shipped', '已出貨'], ['cancelled', '已取消'], ['all', '全部']].map(([k, v]) => (
           <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>
@@ -70,7 +70,7 @@ export default function Shipping() {
                 <div className="row gap end">
                   {ps.left > 0 && <button onClick={() => setMoney({ o, kind: 'collect', amount: String(ps.left) })}>收尾款</button>}
                   <button onClick={() => toggleShipped(o)}>{o.pre.shipped ? '改回未出貨' : '✓ 已出貨'}</button>
-                  {!o.pre.shipped && <button className="danger-outline" onClick={() => setMoney({ o, kind: 'cancel', amount: String(ps.paid) })}>取消預定</button>}
+                  {!o.pre.shipped && <button className="danger-outline" onClick={() => setMoney({ o, kind: 'cancel', amount: String(ps.paid) })}>取消預購</button>}
                 </div>
               )}
             </div>
@@ -79,7 +79,7 @@ export default function Shipping() {
         {!list.length && <p className="muted center">沒有資料</p>}
       </div>
       {money && (
-        <Modal title={money.kind === 'collect' ? `收尾款 #${no[money.o.id]}` : `取消預定 #${no[money.o.id]}`} onClose={() => setMoney(null)}
+        <Modal title={money.kind === 'collect' ? `收尾款 #${no[money.o.id]}` : `取消預購 #${no[money.o.id]}`} onClose={() => setMoney(null)}
           footer={<>
             <button onClick={() => setMoney(null)}>返回</button>
             {Number(money.amount) > 0

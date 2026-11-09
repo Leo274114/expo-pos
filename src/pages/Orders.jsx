@@ -66,7 +66,7 @@ export function OrderCard({ o, no, refNo, returned, onVoid, onReturn }) {
           {isVoid && <span className="badge gray">已作廢</span>}
           {retQty > 0 && <span className="badge red">{retQty >= outQty ? '已退貨' : '部分退貨'}</span>}
           {(o.promos || []).map((p) => <span key={p.id || p.text} className="badge type-gift">{p.text}{p.count > 1 ? ` ×${p.count}` : ''}</span>)}
-          {o.pre && <span className="badge blue">{o.pre.shipped ? '已出貨' : '含預定'}</span>}
+          {o.pre && <span className="badge blue">{o.pre.shipped ? '已出貨' : '含預購'}</span>}
           {refNo && <span className="muted">（原單 #{refNo}）</span>}
         </div>
         <b className="amount">{m ? fmt(m.amount) : ''}</b>
@@ -75,7 +75,7 @@ export function OrderCard({ o, no, refNo, returned, onVoid, onReturn }) {
         {(o.rets || []).map((r, i) => <div key={'r' + i} className="row between ret"><span>【退回】{r.name} × {r.qty}{r.restock ? '' : '（瑕疵）'}</span><span>-{fmt(r.price * r.qty)}</span></div>)}
         {(o.items || []).map((it, i) => (
           <div key={i} className="row between">
-            <span>{it.pre ? '【預定】' : ''}{it.name} × {it.qty}{it.reason ? `（${it.reason}）` : ''}</span>
+            <span>{it.pre ? '【預購】' : ''}{it.name} × {it.qty}{it.reason ? `（${it.reason}）` : ''}</span>
             <span>{o.type === 'gift' || o.type === 'brew' ? <span className="muted">{fmt(it.listPrice * it.qty)}</span> : <>
               {it.price !== it.listPrice && <s className="muted">{fmt(it.listPrice * it.qty)}</s>} {fmt(it.price * it.qty)}</>}</span>
           </div>

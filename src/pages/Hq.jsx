@@ -29,7 +29,7 @@ export default function Hq() {
       const out = await Promise.all(raw.map(async (sh) => {
         const events = list(await getDocs(collection(db, 'shops', sh.id, 'events'))).sort((a, b) => (b.start || '').localeCompare(a.start || ''))
         const cur = events.find((e) => e.id === sh.currentEventId) || events[0] || null
-        // 每個場次的銷售單（用來算累積客人數、最後活動、逾期場次的未出貨預約）
+        // 每個場次的銷售單（用來算累積客人數、最後活動、逾期場次的未出貨預購）
         const byEvent = {}
         await Promise.all(events.map(async (e) => { byEvent[e.id] = list(await getDocs(collection(db, 'shops', sh.id, 'events', e.id, 'orders'))) }))
         const all = Object.values(byEvent).flat()
@@ -169,7 +169,7 @@ function PurgeExpired({ shops, onDone }) {
   }, [shops])
   const [sel, setSel] = useState({})
   const [busy, setBusy] = useState('')
-  useEffect(() => { setSel(Object.fromEntries(rows.map((r) => [r.key, r.pending === 0]))) }, [rows])
+  useEffect(() => { setSel(Object.fromEntries(rows.map((r) => [r.key, r.pending === 0 && !!r.e.downloadedAt]))) }, [rows])
 
   const picked = rows.filter((r) => sel[r.key])
   const toggleShop = (shId, v) => setSel((x) => ({ ...x, ...Object.fromEntries(rows.filter((r) => r.sh.id === shId).map((r) => [r.key, v])) }))
@@ -177,6 +177,8 @@ function PurgeExpired({ shops, onDone }) {
   const run = async () => {
     if (!picked.length) return
     const shopsN = new Set(picked.map((r) => r.sh.id)).size
+    const notDl = picked.filter((r) => !r.e.downloadedAt).length
+    if (notDl && !confirm(`其中 ${notDl} 個場次攤商還沒下載 Excel，刪除後就找不回來了。確定要一起刪除？`)) return
     if (prompt(`將永久刪除 ${shopsN} 個攤位、${picked.length} 個逾期場次的銷售、庫存、零錢、收件資料與耗材紀錄（攤位與商品設定保留）。\n確定刪除請輸入：刪除`) !== '刪除') return
     let n = 0
     try {
@@ -216,10 +218,10 @@ function PurgeExpired({ shops, onDone }) {
         <>
           <div className="table-wrap">
             <table>
-              <thead><tr><th></th><th>攤位</th><th>場次</th><th>結束日</th><th>逾期</th><th>單據</th><th>未出貨預約</th></tr></thead>
+              <thead><tr><th></th><th>攤位</th><th>場次</th><th>結束日</th><th>逾期</th><th>單據</th><th>攤商已下載</th><th>未出貨預購</th></tr></thead>
               <tbody>
                 {rows.map((r, i) => (
-                  <tr key={r.key} className={'expired-row' + (r.pending ? ' has-pending' : '')}>
+                  <tr key={r.key} className={'expired-row' + (r.pending || !r.e.downloadedAt ? ' has-pending' : '')}>
                     <td><input type="checkbox" checked={!!sel[r.key]} onChange={(e) => setSel({ ...sel, [r.key]: e.target.checked })} /></td>
                     <td>{(i === 0 || rows[i - 1].sh.id !== r.sh.id) ? (
                       <label className="check"><input type="checkbox" checked={rows.filter((x) => x.sh.id === r.sh.id).every((x) => sel[x.key])}
@@ -229,6 +231,7 @@ function PurgeExpired({ shops, onDone }) {
                     <td>{r.e.end}</td>
                     <td>{r.days} 天</td>
                     <td className="num">{r.orders.length}</td>
+                    <td className="small">{r.e.downloadedAt ? <><i className="lamp green" />{fmtDate(r.e.downloadedAt)}</> : <><i className="lamp red" />還沒下載</>}</td>
                     <td className={r.pending ? 'neg' : 'muted'}>{r.pending ? `還有 ${r.pending} 筆` : '—'}</td>
                   </tr>
                 ))}
@@ -236,7 +239,7 @@ function PurgeExpired({ shops, onDone }) {
             </table>
           </div>
           <div className="row between wrap" style={{ marginTop: 10 }}>
-            <span className="muted small">已勾選 {picked.length} 個場次{busy && `・${busy}`}</span>
+            <span className="muted small">已勾選 {picked.length} 個場次{busy && `・${busy}`}<br /><i className="lamp green" />攤商已下載 Excel，可以放心刪除　<i className="lamp red" />還沒下載，預設不勾選</span>
             <button className="danger" disabled={!picked.length || !!busy} onClick={run}>刪除勾選項目</button>
           </div>
         </>
@@ -305,7 +308,7 @@ function ShopDetail({ shop, eventId, onEvent, onClose }) {
               <div className="row between"><span>折扣與特價</span><span>-{fmt(r.discountTotal)}</span></div>
               <div className="row between"><span>退貨金額</span><span>-{fmt(r.refundTotal)}</span></div>
               <div className="row between"><span>客單價</span><span>{r.orderCount ? fmt(r.revenue.total / r.orderCount) : '—'}</span></div>
-              <div className="row between"><span>預定&amp;宅配</span><span>{r.pre.orders} 筆・{r.pre.qty} 件</span></div>
+              <div className="row between"><span>預購&amp;宅配</span><span>{r.pre.orders} 筆・{r.pre.qty} 件</span></div>
               <div className="row between"><span>贈與</span><span>{r.gifts.count} 筆・價值 {fmt(r.gifts.value)}</span></div>
               <div className="row between"><span>沖泡耗用</span><span>{r.brew.qty} 包</span></div>
               <div className="row between muted small"><span>最後一筆</span><span>{last ? `${last.day} ${timeOf(last.ts)}` : '—'}</span></div>
@@ -315,7 +318,7 @@ function ShopDetail({ shop, eventId, onEvent, onClose }) {
             <h4>各品項銷售（整個場次）</h4>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>品項</th><th>銷售</th><th>預定</th><th>退回</th><th>贈與</th><th>金額</th></tr></thead>
+                <thead><tr><th>品項</th><th>銷售</th><th>預購</th><th>退回</th><th>贈與</th><th>金額</th></tr></thead>
                 <tbody>
                   {sortCats(Object.keys(byCat), shop.settings?.catOrder).map((cat) => [
                     <tr key={cat} className="cat-row"><td>{cat}</td><td>{byCat[cat].qty}</td><td colSpan={3}></td><td>{fmt(byCat[cat].amount)}</td></tr>,

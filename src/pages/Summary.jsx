@@ -4,6 +4,8 @@ import { fmt, today, summarize, countTotal, expectedCash, skuLabel, soldOutTimes
 import { exportEventExcel } from '../lib/excel.js'
 import DaySelect, { eventDays } from '../components/DaySelect.jsx'
 import BarChart from '../components/BarChart.jsx'
+import LineChart from '../components/LineChart.jsx'
+import InView from '../components/InView.jsx'
 import CountUp from '../components/CountUp.jsx'
 import Icon from '../components/Icon.jsx'
 import { sortCats } from '../lib/template.js'
@@ -77,11 +79,11 @@ export default function Summary() {
           <div className="row between"><span>退貨金額</span><span>-{fmt(r.refundTotal)}</span></div>
           <div className="row between"><span>運費收入</span><span>{fmt(r.shipTotal)}</span></div>
           <div className="row between total"><span>實收</span><span>{fmt(r.revenue.total)}</span></div>
-          <p className="muted small">實收以當天實際收到的錢計算（預定的訂金、尾款依收款日計入）。</p>
+          <p className="muted small">實收以當天實際收到的錢計算（預購的訂金、尾款依收款日計入）。</p>
         </div>
         <div className="card">
-          <h4>預定、贈與、沖泡</h4>
-          <div className="row between"><span>預定&amp;宅配</span><span>{r.pre.orders} 筆・{r.pre.qty} 件</span></div>
+          <h4>預購、贈與、沖泡</h4>
+          <div className="row between"><span>預購&amp;宅配</span><span>{r.pre.orders} 筆・{r.pre.qty} 件</span></div>
           <div className="row between"><span>　已收／待收</span><span>{fmt(r.pre.paid)}／{fmt(r.pre.due)}</span></div>
           <div className="row between"><span>贈與</span><span>{r.gifts.count} 筆・價值 {fmt(r.gifts.value)}</span></div>
           {Object.entries(r.gifts.byTo).map(([k, v]) => <div key={k} className="row between muted"><span>　{k}</span><span>{v.count} 筆・{fmt(v.value)}</span></div>)}
@@ -98,13 +100,13 @@ export default function Summary() {
         </div>
       </div>
 
-      <div className="card">
+      <InView className="card">
         <div className="row between wrap">
           <h4>熱賣排行（前 10 名）</h4>
           <span className="muted small">{scope === 'event' ? '整個展期' : day === today() ? '今天' : day.slice(5).replace('-', '/')}・依銷售數量</span>
         </div>
         <HotRank rows={rows} />
-      </div>
+      </InView>
 
       <div className="card">
         <div className="row between wrap">
@@ -116,7 +118,7 @@ export default function Summary() {
         </div>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>品項</th><th>銷售</th><th>預定</th><th>退回</th><th>贈與</th><th>沖泡</th><th>金額</th></tr></thead>
+            <thead><tr><th>品項</th><th>銷售</th><th>預購</th><th>退回</th><th>贈與</th><th>沖泡</th><th>金額</th></tr></thead>
             <tbody>
               {Object.entries(byCat).map(([cat, c]) => [
                 <tr key={cat} className="cat-row"><td>{cat}</td><td>{c.qty}</td><td colSpan={4}></td><td>{fmt(c.amount)}</td></tr>,
@@ -131,10 +133,10 @@ export default function Summary() {
       </div>
 
       <div className="grid2">
-        <div className="card">
+        <InView className="card">
           <h4>展期每日營業額</h4>
-          <BarChart data={daily} height={150} />
-        </div>
+          <LineChart data={daily} height={150} />
+        </InView>
         <div className="card">
           <h4>低庫存（≤ 5）</h4>
           {low.map(({ k, n }) => (

@@ -1,8 +1,40 @@
 import { sortCats } from './template.js'
 import { soldOutTimes, preIndex, TYPE_LABEL, METHOD_LABEL, PAY_TYPE_LABEL, timeOf, orderMoves, summarize, countTotal, expectedCash, daysBetween, skuLabel, supplyRows } from './calc.js'
 
-// 下載整個場次的 Excel
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const XLSX_TYPE = { description: 'Excel 檔案', accept: { [XLSX_MIME]: ['.xlsx'] } }
+
+// 電腦版 Chrome／Edge：先跳出「另存新檔」讓使用者選資料夾與檔名（要在按下按鈕的當下呼叫）
+// 其他瀏覽器回傳 null，之後照原本方式下載
+async function pickSaveTarget(name) {
+  if (typeof window === 'undefined' || !window.showSaveFilePicker) return null
+  try {
+    return await window.showSaveFilePicker({ suggestedName: name, types: [XLSX_TYPE] })
+  } catch (e) {
+    if (e?.name === 'AbortError') return 'cancel'
+    return null // 不支援或被擋住：改用一般下載
+  }
+}
+
+async function saveWorkbook(XLSX, wb, name, target) {
+  if (target && target !== 'cancel') {
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    const w = await target.createWritable()
+    await w.write(new Blob([buf], { type: XLSX_MIME }))
+    await w.close()
+  } else {
+    XLSX.writeFile(wb, name)
+  }
+}
+
+const safeName = (n) => n.replace(/[\\/:*?"<>|]/g, '_')
+
+// 下載整個場次的 Excel；回傳 true＝已存檔，false＝使用者取消
+// 存檔後在場次記下「已下載」時間，總覽的清除清單會亮綠燈
 export async function exportEventExcel(s) {
+  const name = safeName(`${s.shop?.name || '好攤'}_${s.event?.name || ''}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  const target = await pickSaveTarget(name)
+  if (target === 'cancel') return false
   const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
   const add = (name, rows) => {
@@ -25,10 +57,10 @@ export async function exportEventExcel(s) {
       原單號: o.refOrderId ? no[o.refOrderId] || '' : ''
     }
     const lines = [
-      ...(o.items || []).map((i) => ({ 品項: i.name, 數量: i.qty, 定價: i.listPrice, 實售價: i.price, 小計: i.price * i.qty, 預定: i.pre ? '是' : '', 改價原因: i.reason || '' })),
-      ...(o.rets || []).map((r) => ({ 品項: '【退回】' + r.name, 數量: -r.qty, 定價: '', 實售價: r.price, 小計: -r.price * r.qty, 預定: '', 改價原因: r.restock ? '回庫存' : '瑕疵不回庫存' }))
+      ...(o.items || []).map((i) => ({ 品項: i.name, 數量: i.qty, 定價: i.listPrice, 實售價: i.price, 小計: i.price * i.qty, 預購: i.pre ? '是' : '', 改價原因: i.reason || '' })),
+      ...(o.rets || []).map((r) => ({ 品項: '【退回】' + r.name, 數量: -r.qty, 定價: '', 實售價: r.price, 小計: -r.price * r.qty, 預購: '', 改價原因: r.restock ? '回庫存' : '瑕疵不回庫存' }))
     ]
-    if (!lines.length) detail.push({ ...base, 品項: '', 數量: '', 定價: '', 實售價: '', 小計: '', 預定: '', 改價原因: '' })
+    if (!lines.length) detail.push({ ...base, 品項: '', 數量: '', 定價: '', 實售價: '', 小計: '', 預購: '', 改價原因: '' })
     lines.forEach((l, idx) => detail.push(idx === 0 ? { ...base, ...l } : { 單號: base.單號, 日期: base.日期, 時間: base.時間, 類型: base.類型, 狀態: base.狀態, ...l }))
   }
   add('銷售明細', detail)
@@ -36,7 +68,7 @@ export async function exportEventExcel(s) {
   // 2. 品項統計（全展期）
   const sum = summarize(orders)
   add('品項統計', Object.values(sum.perSku).map((x) => ({
-    品項: x.name, 銷售數量: x.qty, 預定數量: x.preQty, 退回數量: x.retQty, 贈與數量: x.giftQty, 沖泡耗用: x.brewQty, 銷售金額: x.amount
+    品項: x.name, 銷售數量: x.qty, 預購數量: x.preQty, 退回數量: x.retQty, 贈與數量: x.giftQty, 沖泡耗用: x.brewQty, 銷售金額: x.amount
   })))
 
   // 3. 每日營業額
@@ -88,21 +120,24 @@ export async function exportEventExcel(s) {
     收付金額: o.money?.amount || 0, 方式: METHOD_LABEL[o.money?.method] || ''
   })))
 
-  // 8. 預約單（含收件資料）
+  // 8. 預購單（含收件資料）
   const preOf = preIndex(orders)
-  add('預約單', orders.filter((o) => o.pre && o.status !== 'void').map((o) => {
+  add('預購單', orders.filter((o) => o.pre && o.status !== 'void').map((o) => {
     const sh = s.shipping[o.id] || {}
     const ps = preOf(o)
     return {
       單號: no[o.id], 日期: o.day, 狀態: ps.cancelled ? '已取消' : o.pre.shipped ? '已出貨' : '未出貨',
       品項: (o.items || []).filter((i) => i.pre).map((i) => `${i.name}×${i.qty}`).join('、'),
-      付款方式: PAY_TYPE_LABEL[o.pre.payType] || '', 預定金額含運: o.pre.preTotal, 運費: o.shippingFee || 0, 已收: ps.paid,
+      付款方式: PAY_TYPE_LABEL[o.pre.payType] || '', 預購金額含運: o.pre.preTotal, 運費: o.shippingFee || 0, 已收: ps.paid,
       待收: ps.cancelled ? 0 : ps.left, 收件人: sh.name || '', 電話: sh.phone || '', 地址: sh.address || '', 備註: sh.note || ''
     }
   }))
 
-  const name = `${s.shop?.name || '好攤'}_${s.event?.name || ''}_${new Date().toISOString().slice(0, 10)}.xlsx`.replace(/[\\/:*?"<>|]/g, '_')
-  XLSX.writeFile(wb, name)
+  await saveWorkbook(XLSX, wb, name, target)
+  if (s.eventPath) {
+    try { s.batch().set(s.ref(s.eventPath), { downloadedAt: Date.now() }, { merge: true }).commit().catch(() => {}) } catch { /* 忽略 */ }
+  }
+  return true
 }
 
 const fmtCounts = (c = {}) => Object.entries(c).filter(([, n]) => Number(n)).sort((a, b) => b[0] - a[0]).map(([d, n]) => `${d}×${n}`).join(' ')
@@ -124,11 +159,15 @@ export function priceListRows(s) {
 }
 
 export async function exportPriceList(s) {
+  const name = safeName(`${s.shop?.name || '攤位'}-價目表-${new Date().toISOString().slice(0, 10)}.xlsx`)
+  const target = await pickSaveTarget(name)
+  if (target === 'cancel') return false
   const XLSX = await import('xlsx')
   const rows = priceListRows(s)
   const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 說明: '尚無上架品項' }])
   ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 6 }, { wch: 8 }, { wch: 8 }]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, '價目表')
-  XLSX.writeFile(wb, `${s.shop?.name || '攤位'}-價目表-${new Date().toISOString().slice(0, 10)}.xlsx`)
+  await saveWorkbook(XLSX, wb, name, target)
+  return true
 }

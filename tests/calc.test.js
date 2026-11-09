@@ -28,7 +28,7 @@ test('一般購物車', () => {
   assert.equal(t.dueNow, 1100)
 })
 
-test('預定：全額、訂金、貨到付款', () => {
+test('預購：全額、訂金、貨到付款', () => {
   const cart = { lines: [L({ price: 500 }), L({ price: 1000, pre: true })], discount: null }
   const full = cartTotals(cart, { shippingFee: 100, payType: 'full' })
   assert.equal(full.total, 1600); assert.equal(full.dueNow, 1600); assert.equal(full.due, 0)
@@ -49,7 +49,7 @@ test('退款單價按整單折扣分攤', () => {
   assert.equal(refundUnit(o, { price: 500 }), 450)
 })
 
-test('庫存計算：銷售、贈與、沖泡、退貨、作廢、預定、調整', () => {
+test('庫存計算：銷售、贈與、沖泡、退貨、作廢、預購、調整', () => {
   const init = { a: { initial: 10 }, b: { initial: 5 } }
   const orders = [
     { type: 'sale', items: [{ skuId: 'a', qty: 2 }, { skuId: 'b', qty: 1, pre: true }] },
@@ -82,7 +82,7 @@ test('低庫存通知', () => {
   assert.deepEqual(lowStockCrossings({ a: 9 }, { a: 2 }, { lowStock: { 5: false, 3: true, 1: true } }), [{ skuId: 'a', left: 2 }])
 })
 
-test('預定狀態與報表、現金對帳', () => {
+test('預購狀態與報表、現金對帳', () => {
   const d = '2026-11-13'
   const ts = Date.UTC(2026, 10, 13, 3) // 台灣 11 點
   const orders = [

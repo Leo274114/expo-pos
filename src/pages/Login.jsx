@@ -22,7 +22,7 @@ export default function Login() {
     <div className="splash login">
       <img className="app-icon" src={import.meta.env.BASE_URL + 'icon.svg'} alt="好攤" width="96" height="96" />
       <h1>好攤</h1>
-      <p className="muted">擺攤收銀・庫存・預約・零錢對帳</p>
+      <p className="muted">擺攤收銀・庫存・預購・零錢對帳</p>
       <button className="primary big" onClick={login}>使用 Google 帳號登入</button>
       {err && <p className="warn">登入失敗：{err}</p>}
       <p className="muted small">v{VERSION}</p>

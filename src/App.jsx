@@ -65,7 +65,7 @@ function Shell() {
     ['/cash', 'coins', '零錢'],
     ['/admin', 'gear', '管理'],
     ...(s.isAdmin ? [['/hq', 'users', '總覽']] : []),
-    ['/shipping', 'box', '預約單', pending]
+    ['/shipping', 'box', '預購單', pending]
   ]
   return (
     <div className="shell" style={{ '--top-bg': s.settings.themeColor || '#183d2e', '--top-fg': textOn(s.settings.themeColor || '#183d2e') }}>

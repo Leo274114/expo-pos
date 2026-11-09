@@ -105,7 +105,7 @@ export default function Pos() {
     pushLine(sku, 1, pre)
   }
 
-  // 語音點單一次加入多件：庫存不足的部分改為預定（有開啟預定時）
+  // 語音點單一次加入多件：庫存不足的部分改為預購（有開啟預購時）
   const addVoiceLines = (items) => {
     const short = []
     for (const { sku, qty } of items) {
@@ -113,7 +113,7 @@ export default function Pos() {
       if (can > 0) pushLine(sku, can, false)
       const rest = qty - can
       if (rest > 0) {
-        if (s.settings.preorderEnabled && !cart.refOrderId) { pushLine(sku, rest, true); short.push(`${skuLabel(sku, s.productById[sku.productId])} ${rest} 件改為預定`) }
+        if (s.settings.preorderEnabled && !cart.refOrderId) { pushLine(sku, rest, true); short.push(`${skuLabel(sku, s.productById[sku.productId])} ${rest} 件改為預購`) }
         else short.push(`${skuLabel(sku, s.productById[sku.productId])} 庫存不足，少加 ${rest} 件`)
       }
     }
@@ -144,7 +144,7 @@ export default function Pos() {
     let q = Math.floor(Number(n) || 0)
     if (q <= 0) { removeLine(c, line); return }
     if (q > max) {
-      ui.toast(line.ret ? `最多可退 ${max}` : `庫存只剩 ${max}，已改為 ${max}${s.settings.preorderEnabled ? '；不足的可再點商品改為預定' : ''}`, { kind: 'error', ms: 5000 })
+      ui.toast(line.ret ? `最多可退 ${max}` : `庫存只剩 ${max}，已改為 ${max}${s.settings.preorderEnabled ? '；不足的可再點商品改為預購' : ''}`, { kind: 'error', ms: 5000 })
       q = max
     }
     updateLines((lines) => lines.map((l) => (l.key === line.key ? { ...l, qty: q } : l)), c.id)
@@ -351,7 +351,7 @@ export default function Pos() {
                       {flash && ci === cs.active && flash.skuId === l.skuId && flash.pre === !!l.pre && !l.ret && <span className="flash-bg" key={flash.n} />}
                       <div className="cl-name">
                         {l.ret && <span className="badge red">退回</span>}
-                        {l.pre && <span className="badge blue">預定</span>}
+                        {l.pre && <span className="badge blue">預購</span>}
                         {l.name}
                         {l.ret && (
                           <label className="check small">
@@ -418,11 +418,11 @@ export default function Pos() {
           footer={<>
             <button onClick={() => setZero(null)}>取消</button>
             {s.settings.preorderEnabled && !cart.refOrderId && (
-              <button className="primary" onClick={() => { addSku(zero, true); setZero(null) }}>改為預定&amp;宅配</button>
+              <button className="primary" onClick={() => { addSku(zero, true); setZero(null) }}>改為預購&amp;宅配</button>
             )}
           </>}>
           <p className="big-text">「{skuLabel(zero, s.productById[zero.productId])}」庫存為 0</p>
-          {!s.settings.preorderEnabled && <p className="muted">預定&amp;宅配功能已關閉（可在管理頁開啟）。</p>}
+          {!s.settings.preorderEnabled && <p className="muted">預購&amp;宅配功能已關閉（可在管理頁開啟）。</p>}
         </Modal>
       )}
       {voiceOpen && <VoiceModal rec0={voiceOpen.rec} cartName={cart.name} skus={activeSkus} avail={avail} onClose={() => setVoiceOpen(false)}
@@ -569,7 +569,7 @@ function VoiceModal({ rec0, cartName, skus, avail, onClose, onAdd }) {
               <>
                 {r.sku
                   ? <div className="vr-sku">{label(r.sku)}{avail(r.sku) !== Infinity && (r.qty > Math.max(0, avail(r.sku))
-                        ? <span className="short small">　庫存只有 {Math.max(0, avail(r.sku))}，{s.settings.preorderEnabled ? `${r.qty - Math.max(0, avail(r.sku))} 件會改為預定` : '只會加入現有庫存'}</span>
+                        ? <span className="short small">　庫存只有 {Math.max(0, avail(r.sku))}，{s.settings.preorderEnabled ? `${r.qty - Math.max(0, avail(r.sku))} 件會改為預購` : '只會加入現有庫存'}</span>
                         : <span className="muted small">　庫存 {Math.max(0, avail(r.sku))}</span>)}
                       {r.candidates.length > 0 && <button className="link small" onClick={() => set(r.id, { sku: null })}>換一個</button>}</div>
                   : (
@@ -753,7 +753,7 @@ function Checkout({ cart, onClose, onDone }) {
       <div className="summary-lines">
         {cart.lines.map((l) => (
           <div key={l.key} className="row between">
-            <span>{l.ret ? '【退回】' : l.pre ? '【預定】' : ''}{l.name} × {l.qty}</span>
+            <span>{l.ret ? '【退回】' : l.pre ? '【預購】' : ''}{l.name} × {l.qty}</span>
             <span>{type === 'sale' ? (l.ret ? '-' : '') + fmt(l.price * l.qty) : fmt(l.listPrice * l.qty)}</span>
           </div>
         ))}
@@ -769,7 +769,7 @@ function Checkout({ cart, onClose, onDone }) {
 
       {type === 'sale' && hasPre && (
         <div className="box">
-          <h4>預定&amp;宅配<Help>{HELP.preorderEnabled}</Help></h4>
+          <h4>預購&amp;宅配<Help>{HELP.preorderEnabled}</Help></h4>
           <div className="grid2">
             <label>收件人<input value={ship.name} onChange={(e) => setShip({ ...ship, name: e.target.value })} /></label>
             <label>電話<input inputMode="tel" value={ship.phone} onChange={(e) => setShip({ ...ship, phone: e.target.value })} /></label>
@@ -786,7 +786,7 @@ function Checkout({ cart, onClose, onDone }) {
           {payType === 'deposit' && (
             <label>訂金<input className="num" inputMode="numeric" value={deposit} onChange={(e) => setDeposit(e.target.value.replace(/[^\d]/g, ''))} /></label>
           )}
-          <p className="muted">預定金額（含運）{fmt(t.preShare)}{t.due > 0 ? `，待收 ${fmt(t.due)}` : ''}</p>
+          <p className="muted">預購金額（含運）{fmt(t.preShare)}{t.due > 0 ? `，待收 ${fmt(t.due)}` : ''}</p>
         </div>
       )}
 

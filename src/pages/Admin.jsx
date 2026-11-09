@@ -662,10 +662,10 @@ function SettingsTab() {
       <T k="coin1">1 元面額</T>
       <T k="giftEnabled">贈與單</T>
       <T k="brewEnabled">沖泡耗用單</T>
-      <T k="preorderEnabled">預定&amp;宅配</T>
+      <T k="preorderEnabled">預購&amp;宅配</T>
       <T k="voiceEnabled">語音點單（收銀畫面出現「語音點單」按鈕；點選按鈕永遠可用）</T>
 
-      <h4>預定付款方式（至少一種）<Help>{HELP.prePay}</Help></h4>
+      <h4>預購付款方式（至少一種）<Help>{HELP.prePay}</Help></h4>
       {Object.entries(PAY_TYPE_LABEL).map(([k, label]) => (
         <label key={k} className="check">
           <input type="checkbox" checked={!!payTypes[k]}
@@ -723,8 +723,10 @@ function DataTab() {
         <>
           <p>場次：{s.event.name}（{s.event.start} ～ {s.event.end}）</p>
           <p className="muted">資料保留至 {del}，請於期限內下載。</p>
-          {pending > 0 && <p className="warn">還有 {pending} 筆預定未出貨，收件資料在「預約單」工作表。</p>}
-          <button className="primary" onClick={() => exportEventExcel(s).then(() => toast('已下載')).catch((e) => toast('下載失敗：' + e.message, { kind: 'error' }))}>
+          <p className={s.event.downloadedAt ? 'pos small' : 'muted small'}>{s.event.downloadedAt ? `✓ 上次下載：${new Date(s.event.downloadedAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false })}（下載後浩子那邊會顯示已備份）` : '這個場次還沒下載過 Excel'}</p>
+          <p className="muted small">電腦用 Chrome／Edge 會跳出視窗讓你選存放的資料夾；其他瀏覽器會存到「下載」資料夾。</p>
+          {pending > 0 && <p className="warn">還有 {pending} 筆預購未出貨，收件資料在「預購單」工作表。</p>}
+          <button className="primary" onClick={() => exportEventExcel(s).then((ok) => ok && toast('已下載')).catch((e) => toast('下載失敗：' + e.message, { kind: 'error' }))}>
             下載 Excel（.xlsx）
           </button>
         </>
@@ -733,7 +735,7 @@ function DataTab() {
       <h4>價目表</h4>
       <p className="muted small">列出所有上架中的品項與價格。建議展前下載一份或印出來，萬一系統出狀況，照價目表手寫也能繼續賣。</p>
       <div className="row gap">
-        <button className="primary" onClick={() => exportPriceList(s).then(() => toast('已下載價目表')).catch((e) => toast('下載失敗：' + e.message, { kind: 'error' }))}>下載價目表（.xlsx）</button>
+        <button className="primary" onClick={() => exportPriceList(s).then((ok) => ok && toast('已下載價目表')).catch((e) => toast('下載失敗：' + e.message, { kind: 'error' }))}>下載價目表（.xlsx）</button>
         <button onClick={() => setSheet(true)}>預覽／列印價目表</button>
       </div>
       <hr />

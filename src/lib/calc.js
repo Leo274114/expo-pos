@@ -7,7 +7,7 @@ export const DEFAULT_SETTINGS = {
   coin1: false,           // 1 元面額
   giftEnabled: true,      // 贈與單
   brewEnabled: true,      // 沖泡耗用單
-  preorderEnabled: true,  // 預定&宅配
+  preorderEnabled: true,  // 預購&宅配
   prePayTypes: { full: true, deposit: true, cod: true },
   freeShipThreshold: 0,   // 0 = 未設定
   voiceEnabled: false,    // 語音輸入（第二階段）
@@ -18,7 +18,7 @@ export const PAY_TYPE_LABEL = { full: '現場付全額', deposit: '先付訂金'
 export const METHOD_LABEL = { cash: '現金', linepay: 'LINE Pay' }
 export const TYPE_LABEL = {
   sale: '銷售', gift: '贈與', brew: '沖泡耗用', return: '退貨', exchange: '換貨',
-  collect: '收尾款', cancelPre: '取消預定'
+  collect: '收尾款', cancelPre: '取消預購'
 }
 export const GIFT_TO = ['客人', '長官', '活動贊助']
 
@@ -173,7 +173,7 @@ export function cartTotals(cart, opt = {}) {
   const preSub = out.filter((l) => l.pre).reduce((s, l) => s + l.price * l.qty, 0)
   const hasPre = preSub > 0 || out.some((l) => l.pre)
   const ship = hasPre ? Math.max(0, Math.round(Number(opt.shippingFee) || 0)) : 0
-  const preShare = Math.round(preSub * (1 - ratio)) + ship // 預定部分（含運費）
+  const preShare = Math.round(preSub * (1 - ratio)) + ship // 預購部分（含運費）
   const retTotal = ret.reduce((s, l) => s + l.price * l.qty, 0)
   const total = subtotal - discountAmt + ship - retTotal
   let due = 0
@@ -197,7 +197,7 @@ export function lowStockCrossings(before, after, settings) {
   return out
 }
 
-// 預定狀態：尾款與取消由「收尾款／取消預定」單據推算，作廢那些單據時自動還原
+// 預購狀態：尾款與取消由「收尾款／取消預購」單據推算，作廢那些單據時自動還原
 export function preIndex(orders = []) {
   const collected = {}, cancelled = {}
   for (const o of orders) {
