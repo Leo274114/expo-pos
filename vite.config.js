@@ -29,7 +29,8 @@ export default defineConfig({
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
-      workbox: { maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 }
+      // privacy.html 是獨立頁面，不要被 App 攔截
+      workbox: { maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, navigateFallbackDenylist: [/privacy\.html$/] }
     })
   ]
 })

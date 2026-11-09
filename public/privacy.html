@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>好攤 隱私權政策</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<style>
+  body { margin: 0; background: #f7f4ee; color: #1f2a24; font: 16px/1.75 -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
+  header { background: #183d2e; color: #f6efe2; padding: 28px 20px; }
+  header .in, main { max-width: 760px; margin: 0 auto; }
+  header img { width: 56px; height: 56px; border-radius: 14px; vertical-align: middle; margin-right: 12px; }
+  header h1 { display: inline-block; vertical-align: middle; margin: 0; font-size: 26px; }
+  main { padding: 8px 20px 48px; }
+  h2 { color: #183d2e; font-size: 19px; margin: 28px 0 6px; border-left: 0; }
+  ul { padding-left: 1.3em; }
+  .muted { color: #6b746e; font-size: 14px; }
+  a { color: #b35e10; }
+</style>
+</head>
+<body>
+<header><div class="in"><img src="icon.svg" alt="" /><h1>好攤 隱私權政策</h1></div></header>
+<main>
+  <p class="muted">最後更新：2026 年 11 月 9 日</p>
+  <p>「好攤」是給展場與市集攤商使用的收銀、庫存與對帳網頁 App，由浩子（LEO）維護，網址為 <a href="https://leo274114.github.io/expo-pos/">https://leo274114.github.io/expo-pos/</a>。本政策說明我們會收集哪些資料、如何使用與保存。</p>
+
+  <h2>1. 我們收集的資料</h2>
+  <ul>
+    <li><b>登入資訊</b>：使用 Google 帳號登入時取得的電子郵件與帳號 ID，用來辨識您的攤位。</li>
+    <li><b>攤位營業資料</b>：您自行輸入的攤位名稱、商品與價格、庫存、銷售與退換貨紀錄、零錢點算、耗材數量等。</li>
+    <li><b>客人的宅配收件資料</b>：您為預購單輸入的收件人姓名、電話、地址與備註，僅供您出貨使用。</li>
+  </ul>
+
+  <h2>2. 資料存放在哪裡</h2>
+  <ul>
+    <li>營業資料存放在 Google Firebase（Cloud Firestore）。每個 Google 帳號只能讀寫自己的攤位，由資料庫安全規則把關。</li>
+    <li>斷網時資料會暫存在您的裝置上，恢復連線後自動同步。</li>
+  </ul>
+
+  <h2>3. 誰可以看到</h2>
+  <ul>
+    <li>只有您本人（以您的 Google 帳號登入的裝置）可以看到完整的攤位資料。</li>
+    <li>維護者浩子可在管理頁查看各攤位的<b>銷售統計</b>（營業額、筆數、品項銷量），用於改良本 App；<b>不會查看您的庫存、耗材數據與客人收件資料</b>，安全規則也不允許讀取。</li>
+    <li>我們不會出售、出租或提供您的資料給任何第三方。</li>
+  </ul>
+
+  <h2>4. Google 雲端硬碟（選用）</h2>
+  <ul>
+    <li>如果您使用「上傳 Google 雲端」功能，本 App 會請求 Google 的 <code>drive.file</code> 權限，<b>只能建立與更新本 App 自己建立的檔案</b>（例如「好攤」資料夾裡的試算表），無法讀取您雲端硬碟中的其他檔案。</li>
+    <li>檔案存放在您自己的 Google 雲端硬碟，由您自行管理；浩子無法存取。</li>
+    <li>本 App 使用 Google API 取得的資料，遵守 <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API 服務使用者資料政策</a>（包含有限使用規定）。</li>
+  </ul>
+
+  <h2>5. 保存期限與刪除</h2>
+  <ul>
+    <li>展覽場次結束 <b>14 天後</b>，該場次的銷售、庫存、零錢、收件資料與耗材紀錄會從 Firebase 刪除，屆時不另行通知。請於期限內下載 Excel 或上傳到您自己的 Google 雲端保存。</li>
+    <li>攤位名稱、商品與價格等設定會保留，方便下次使用。</li>
+    <li>您也可以隨時在「管理 → 展覽場次」自行刪除場次資料。如需刪除整個攤位與帳號資料，請來信聯絡。</li>
+  </ul>
+
+  <h2>6. Cookie 與本機儲存</h2>
+  <p>本 App 使用瀏覽器的本機儲存（例如未結帳的購物車、最近搜尋）與 Firebase 的登入狀態，僅用於 App 本身運作，不用於廣告或追蹤。</p>
+
+  <h2>7. 聯絡我們</h2>
+  <p>對本政策或您的資料有任何問題，請來信：<a href="mailto:bihutea3618@gmail.com">bihutea3618@gmail.com</a></p>
+
+  <p class="muted" style="margin-top:36px"><a href="./">← 回到好攤</a></p>
+</main>
+</body>
+</html>
