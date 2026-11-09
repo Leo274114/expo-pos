@@ -5,7 +5,7 @@ import { auth, db } from '../firebase.js'
 import { useShop, useUi, commit, deviceId } from '../store.jsx'
 import { TEMPLATE_LISTS, TEMPLATE_PRODUCTS, ADJUST_REASONS, CATEGORY_ORDER, CATEGORY_HINT, sortCats, THEME_PRESETS, textOn } from '../lib/template.js'
 import { preIndex, componentAvail, fmt, PAY_TYPE_LABEL, skuLabel, today, dayOf, timeOf } from '../lib/calc.js'
-import { exportEventExcel } from '../lib/excel.js'
+import { exportEventExcel, exportPriceList, priceListRows } from '../lib/excel.js'
 import Modal from '../components/Modal.jsx'
 import { useSearchParams } from 'react-router-dom'
 import SortGroup, { moveItem } from '../components/SortGroup.jsx'
@@ -624,6 +624,7 @@ function AdjustTab() {
 // ---------------- 功能設定 ----------------
 function SettingsTab() {
   const s = useShop()
+  const { toast } = useUi()
   const st = s.settings
   const [name, setName] = useState(s.shop?.name || '')
   const T = ({ k, children }) => (
@@ -632,9 +633,9 @@ function SettingsTab() {
   const payTypes = st.prePayTypes || {}
   return (
     <div className="card settings">
-      <label>攤位名稱
-        <input value={name} onChange={(e) => setName(e.target.value)}
-          onBlur={() => commit(writeBatch(db).set(doc(db, s.shopPath), { name }, { merge: true }))} />
+      <label><span>攤位名稱 <span className="req">*</span></span>
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={30} className={!name.trim() ? 'need' : ''}
+          onBlur={() => { if (!name.trim()) { setName(s.shop?.name || ''); toast('攤位名稱不能空白'); return } commit(writeBatch(db).set(doc(db, s.shopPath), { name: name.trim() }, { merge: true })) }} />
       </label>
 
       <h4>攤位 Logo<Help>{HELP.logo}</Help></h4>
@@ -707,6 +708,12 @@ function DataTab() {
   const del = s.deleteAfterOf(s.event)
   const preOf = preIndex(s.orders)
   const pending = s.orders.filter((o) => o.status !== 'void' && o.pre && !preOf(o).cancelled && !o.pre.shipped).length
+  const [sheet, setSheet] = useState(false)
+  const logout = () => {
+    if (!navigator.onLine && !confirm('目前離線中！離線登出後無法再登入，也無法結帳。確定要登出？')) return
+    if (s.pendingCount > 0 && !confirm(`還有 ${s.pendingCount} 筆資料尚未上傳，登出會遺失這些資料。確定要登出？`)) return
+    signOut(auth)
+  }
   return (
     <div className="card">
       <h4>下載 Excel</h4>
@@ -721,10 +728,51 @@ function DataTab() {
         </>
       ) : <p className="muted">尚未選擇場次</p>}
       <hr />
+      <h4>價目表</h4>
+      <p className="muted small">列出所有上架中的品項與價格。建議展前下載一份或印出來，萬一系統出狀況，照價目表手寫也能繼續賣。</p>
+      <div className="row gap">
+        <button className="primary" onClick={() => exportPriceList(s).then(() => toast('已下載價目表')).catch((e) => toast('下載失敗：' + e.message, { kind: 'error' }))}>下載價目表（.xlsx）</button>
+        <button onClick={() => setSheet(true)}>預覽／列印價目表</button>
+      </div>
+      <hr />
       <p className="muted">登入帳號：{s.user?.email}</p>
       <p className="muted small">帳號 ID：<code>{s.user?.uid}</code>{s.isAdmin && <span className="badge">系統管理者</span>}</p>
-      <button onClick={() => signOut(auth)}>登出</button>
+      {s.pendingCount > 0 && <p className="warn">這台裝置還有 {s.pendingCount} 筆資料尚未上傳。現在登出，這些資料會遺失！</p>}
+      <button onClick={logout}>登出</button>
+      {sheet && <PriceSheet onClose={() => setSheet(false)} />}
     </div>
+  )
+}
+
+// 價目表預覽：按「列印」可印出或在 iPad 上存成 PDF
+function PriceSheet({ onClose }) {
+  const s = useShop()
+  const rows = priceListRows(s)
+  const hasPromo = rows.some((r) => r.活動價 !== '')
+  let last = null
+  return (
+    <Modal title="價目表" onClose={onClose} wide>
+      <div className="print-area price-sheet">
+        <h2>{s.shop?.name || '我的攤位'}　價目表</h2>
+        <p className="muted small">{new Date().toLocaleDateString('zh-TW')} 製表{s.event ? '・' + s.event.name : ''}</p>
+        <table className="table">
+          <thead><tr><th>品項</th><th>規格</th><th className="r">定價</th>{hasPromo && <th className="r">活動價</th>}</tr></thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const head = r.類別 !== last ? (last = r.類別, <tr key={'c' + i} className="cat-row"><td colSpan={hasPromo ? 4 : 3}>{r.類別}</td></tr>) : null
+              return [head, (
+                <tr key={i}><td>{r.品項}</td><td>{r.規格 || '—'}</td><td className="r num">{fmt(r.定價)}{r.單位 ? ' /' + r.單位 : ''}</td>{hasPromo && <td className="r num">{r.活動價 !== '' ? fmt(r.活動價) : ''}</td>}</tr>
+              )]
+            })}
+          </tbody>
+        </table>
+        {!rows.length && <p className="muted">尚無上架品項</p>}
+      </div>
+      <div className="row gap no-print">
+        <button className="primary" onClick={() => window.print()}>列印／存成 PDF</button>
+        <button onClick={onClose}>關閉</button>
+      </div>
+    </Modal>
   )
 }
 

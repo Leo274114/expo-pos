@@ -16,11 +16,11 @@ export function doc(a, ...segs) {
   return { type: 'doc', path: p, get id() { return p.split('/').pop() } }
 }
 const parent = (p) => p.split('/').slice(0, -1).join('/')
-const docSnap = (p) => ({ id: p.split('/').pop(), exists: () => data.has(p), data: () => structuredClone(data.get(p)), ref: { type: 'doc', path: p } })
+const docSnap = (p) => ({ id: p.split('/').pop(), exists: () => data.has(p), data: () => structuredClone(data.get(p)), ref: { type: 'doc', path: p }, metadata: { hasPendingWrites: false } })
 const colSnap = (cp) => {
   const docs = []
   for (const k of data.keys()) if (parent(k) === cp) docs.push(docSnap(k))
-  return { docs }
+  return { docs, metadata: { hasPendingWrites: false } }
 }
 function notify(p) {
   setTimeout(() => {
@@ -29,7 +29,8 @@ function notify(p) {
     ;(colSubs.get(cp) || []).forEach((cb) => cb(colSnap(cp)))
   }, 0)
 }
-export function onSnapshot(ref, cb) {
+export function onSnapshot(ref, a, b) {
+  const cb = typeof a === 'function' ? a : b
   const m = ref.type === 'col' ? colSubs : docSubs
   if (!m.has(ref.path)) m.set(ref.path, new Set())
   m.get(ref.path).add(cb)

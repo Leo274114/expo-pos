@@ -1,4 +1,4 @@
-import { HashRouter, NavLink, Route, Routes } from 'react-router-dom'
+import { HashRouter, Link, NavLink, Route, Routes } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { isConfigured } from './firebase-config.js'
 import { preIndex } from './lib/calc.js'
@@ -12,6 +12,7 @@ import Summary from './pages/Summary.jsx'
 import Cash from './pages/Cash.jsx'
 import Admin from './pages/Admin.jsx'
 import Hq from './pages/Hq.jsx'
+import Faq, { DisclaimerList } from './pages/Faq.jsx'
 import Icon from './components/Icon.jsx'
 
 export default function App() {
@@ -69,7 +70,12 @@ function Shell() {
       <header className="top">
         <span className="brand">{s.shop?.logo ? <img className="brand-logo" src={s.shop.logo} alt="" /> : <Icon name="leaf" size={20} />}{s.shop?.name || '出攤記帳'}</span>
         <span className="event">{s.event?.name || '未選擇場次'}</span>
-        <span className={'net ' + (online ? 'on' : 'off')}><i />{online ? '已連線' : '離線中，連線後自動同步'}</span>
+        <span className={'net ' + (online ? (s.pendingCount ? 'busy' : 'on') : 'off')} title="尚未上傳到雲端的資料筆數">
+          <i />{online
+            ? (s.pendingCount ? `上傳中・${s.pendingCount} 筆` : '已全部同步')
+            : (s.pendingCount ? `離線中・${s.pendingCount} 筆尚未上傳` : '離線中・可照常結帳')}
+        </span>
+        <Link to="/help" className="qa-link" aria-label="Q&A 說明">Q&A</Link>
       </header>
       <main>
         <Routes>
@@ -80,6 +86,7 @@ function Shell() {
           <Route path="/cash" element={<Cash />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/hq" element={<Hq />} />
+          <Route path="/help" element={<Faq />} />
         </Routes>
       </main>
       <nav className="bottom">
@@ -108,9 +115,11 @@ function Consent() {
   const s = useShop()
   const [name, setName] = useState(s.shop?.name && s.shop.name !== '我的攤位' ? s.shop.name : '')
   const [ok, setOk] = useState(false)
+  const nameOk = name.trim().length > 0
   const go = () => {
+    if (!nameOk || !ok) return
     const b = s.batch()
-    b.set(s.ref(s.shopPath), { name: name.trim() || '我的攤位', consentAt: Date.now() }, { merge: true })
+    b.set(s.ref(s.shopPath), { name: name.trim(), consentAt: Date.now() }, { merge: true })
     b.commit()
   }
   return (
@@ -118,14 +127,18 @@ function Consent() {
       <div className="consent-card">
         <h2>歡迎使用出攤記帳</h2>
         <p className="muted">登入帳號：{s.user?.email}</p>
-        <label>攤位名稱
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例：碧湖咖啡" autoFocus />
+        <label><span>攤位名稱 <span className="req">*</span> <span className="muted small">必填</span></span>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例：碧湖咖啡" autoFocus maxLength={30}
+            className={!nameOk ? 'need' : ''} />
         </label>
         <div className="consent-text">
           本 App 由浩子維護。浩子可查看各攤位的銷售統計，用於改良本 App；浩子不會查看您的庫存數據，也不會將任何數據提供給他人。展覽結束 14 天後資料將刪除，屆時不另行通知，請於期限內下載 Excel 檔保存。
         </div>
-        <label className="check"><input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} />我已閱讀並同意</label>
-        <button className="primary big" disabled={!ok} onClick={go}>同意並開始</button>
+        <h4 className="disclaimer-title">⚠️ 使用須知（免責說明）</h4>
+        <div className="consent-text disclaimer-box"><DisclaimerList /></div>
+        <label className="check"><input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} />我已閱讀並同意以上聲明與使用須知</label>
+        <button className="primary big" disabled={!ok || !nameOk} onClick={go}>同意並開始</button>
+        {!nameOk && <p className="warn small">請先填寫攤位名稱</p>}
         <p className="muted small">開始後到「管理 → 商品與價格」按「載入內建範本」，再填入自己的價格與庫存。</p>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { sortCats } from './template.js'
 import { soldOutTimes, preIndex, TYPE_LABEL, METHOD_LABEL, PAY_TYPE_LABEL, timeOf, orderMoves, summarize, countTotal, expectedCash, daysBetween, skuLabel } from './calc.js'
 
 // 下載整個場次的 Excel
@@ -104,3 +105,29 @@ export async function exportEventExcel(s) {
 }
 
 const fmtCounts = (c = {}) => Object.entries(c).filter(([, n]) => Number(n)).sort((a, b) => b[0] - a[0]).map(([d, n]) => `${d}×${n}`).join(' ')
+
+// 價目表：依類別順序 → 商品順序 → 規格順序，只列上架中的品項
+export function priceListRows(s) {
+  const skus = s.skus.filter((k) => k.active !== false && s.productById[k.productId] && s.productById[k.productId].active !== false)
+  const prods = s.products.filter((p) => p.active !== false && skus.some((k) => k.productId === p.id))
+  const cats = sortCats([...new Set(prods.map((p) => p.category || '未分類'))], s.settings.catOrder)
+  const rows = []
+  for (const c of cats) {
+    for (const p of prods.filter((x) => (x.category || '未分類') === c)) {
+      for (const k of skus.filter((x) => x.productId === p.id)) {
+        rows.push({ 類別: c, 品項: p.name, 規格: (k.opts || []).filter(Boolean).join('・'), 單位: p.unit || '', 定價: k.price || 0, 活動價: k.promoPrice ?? '' })
+      }
+    }
+  }
+  return rows
+}
+
+export async function exportPriceList(s) {
+  const XLSX = await import('xlsx')
+  const rows = priceListRows(s)
+  const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 說明: '尚無上架品項' }])
+  ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 6 }, { wch: 8 }, { wch: 8 }]
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, '價目表')
+  XLSX.writeFile(wb, `${s.shop?.name || '攤位'}-價目表-${new Date().toISOString().slice(0, 10)}.xlsx`)
+}

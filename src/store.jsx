@@ -117,17 +117,25 @@ export function ShopProvider({ children }) {
   const eventPath = shopPath && eventId ? `${shopPath}/events/${eventId}` : null
 
   // 展覽場次層
+  const [pend, setPend] = useState({})
   useEffect(() => {
     setEv({ stockInit: {}, orders: [], adjustments: [], cashCounts: {}, cashMoves: [], shipping: {} })
     if (!eventPath) return
     const set = (k, v) => setEv((e) => ({ ...e, [k]: v }))
+    setPend({})
+    // includeMetadataChanges：連文件「是否還沒上傳到雲端」的狀態變化也會通知
+    const watch = (name, fn) => onSnapshot(collection(db, eventPath, name), { includeMetadataChanges: true }, (s) => {
+      const n = s.docs.filter((d) => d.metadata?.hasPendingWrites).length
+      setPend((p) => (p[name] === n ? p : { ...p, [name]: n }))
+      fn(s)
+    })
     const unsubs = [
-      onSnapshot(collection(db, eventPath, 'stock'), (s) => set('stockInit', toMap(s))),
-      onSnapshot(collection(db, eventPath, 'orders'), (s) => set('orders', toList(s).sort((a, b) => b.ts - a.ts))),
-      onSnapshot(collection(db, eventPath, 'adjustments'), (s) => set('adjustments', toList(s).sort((a, b) => b.ts - a.ts))),
-      onSnapshot(collection(db, eventPath, 'cashCounts'), (s) => set('cashCounts', toMap(s))),
-      onSnapshot(collection(db, eventPath, 'cashMoves'), (s) => set('cashMoves', toList(s).sort((a, b) => b.ts - a.ts))),
-      onSnapshot(collection(db, eventPath, 'shipping'), (s) => set('shipping', toMap(s)))
+      watch('stock', (s) => set('stockInit', toMap(s))),
+      watch('orders', (s) => set('orders', toList(s).sort((a, b) => b.ts - a.ts))),
+      watch('adjustments', (s) => set('adjustments', toList(s).sort((a, b) => b.ts - a.ts))),
+      watch('cashCounts', (s) => set('cashCounts', toMap(s))),
+      watch('cashMoves', (s) => set('cashMoves', toList(s).sort((a, b) => b.ts - a.ts))),
+      watch('shipping', (s) => set('shipping', toMap(s)))
     ]
     return () => unsubs.forEach((u) => u())
   }, [eventPath])
@@ -145,6 +153,8 @@ export function ShopProvider({ children }) {
     return {
       user, isAdmin, shop, shopId, shopPath, settings, optionLists, products, skus, events, event, eventId, eventPath,
       productById, skuById, labelOf, stock, loaded, ...ev,
+      pendingCount: Object.values(pend).reduce((a, b) => a + b, 0),
+      pendingOrders: pend.orders || 0,
       // 寫入工具
       batch: () => writeBatch(db),
       ref: (...p) => doc(db, ...p),
@@ -156,7 +166,7 @@ export function ShopProvider({ children }) {
       },
       deleteAfterOf: (e) => (e?.end ? addDays(e.end, 14) : null)
     }
-  }, [user, isAdmin, shop, shopId, shopPath, optionLists, products, skus, events, eventId, eventPath, ev, loaded])
+  }, [user, isAdmin, shop, shopId, shopPath, optionLists, products, skus, events, eventId, eventPath, ev, loaded, pend])
 
   return <ShopCtx.Provider value={value}>{children}</ShopCtx.Provider>
 }
