@@ -3,6 +3,7 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { collection, doc, getDoc, onSnapshot, setDoc, writeBatch } from 'firebase/firestore'
 import { auth, db } from './firebase.js'
 import { DEFAULT_SETTINGS, computeStock, skuLabel, addDays, today } from './lib/calc.js'
+import { DEFAULT_SUPPLIES } from './lib/template.js'
 
 // ---------- 提示訊息 ----------
 const UiCtx = createContext(null)
@@ -70,7 +71,7 @@ export function ShopProvider({ children }) {
   const [products, setProducts] = useState([])
   const [skus, setSkus] = useState([])
   const [events, setEvents] = useState([])
-  const [ev, setEv] = useState({ stockInit: {}, orders: [], adjustments: [], cashCounts: {}, cashMoves: [], shipping: {} })
+  const [ev, setEv] = useState({ stockInit: {}, orders: [], adjustments: [], cashCounts: {}, cashMoves: [], shipping: {}, supplies: {} })
   const [loaded, setLoaded] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
 
@@ -119,7 +120,7 @@ export function ShopProvider({ children }) {
   // 展覽場次層
   const [pend, setPend] = useState({})
   useEffect(() => {
-    setEv({ stockInit: {}, orders: [], adjustments: [], cashCounts: {}, cashMoves: [], shipping: {} })
+    setEv({ stockInit: {}, orders: [], adjustments: [], cashCounts: {}, cashMoves: [], shipping: {}, supplies: {} })
     if (!eventPath) return
     const set = (k, v) => setEv((e) => ({ ...e, [k]: v }))
     setPend({})
@@ -135,7 +136,8 @@ export function ShopProvider({ children }) {
       watch('adjustments', (s) => set('adjustments', toList(s).sort((a, b) => b.ts - a.ts))),
       watch('cashCounts', (s) => set('cashCounts', toMap(s))),
       watch('cashMoves', (s) => set('cashMoves', toList(s).sort((a, b) => b.ts - a.ts))),
-      watch('shipping', (s) => set('shipping', toMap(s)))
+      watch('shipping', (s) => set('shipping', toMap(s))),
+      watch('supplies', (s) => set('supplies', toMap(s)))
     ]
     return () => unsubs.forEach((u) => u())
   }, [eventPath])
@@ -150,9 +152,10 @@ export function ShopProvider({ children }) {
     }
     const stock = computeStock(ev.stockInit, ev.orders, ev.adjustments)
     const event = events.find((e) => e.id === eventId) || null
+    const supplyItems = shop?.supplyItems || DEFAULT_SUPPLIES
     return {
       user, isAdmin, shop, shopId, shopPath, settings, optionLists, products, skus, events, event, eventId, eventPath,
-      productById, skuById, labelOf, stock, loaded, ...ev,
+      productById, skuById, labelOf, stock, loaded, ...ev, supplyItems,
       pendingCount: Object.values(pend).reduce((a, b) => a + b, 0),
       pendingOrders: pend.orders || 0,
       // 寫入工具

@@ -145,3 +145,15 @@ test('完售紀錄', () => {
   const r = soldOutTimes(init, orders, [{ skuId: 'a', delta: 2, ts: 5000 }])
   assert.deepEqual(r.map((x) => [x.skuId, x.ts, x.sold]), [['a', 3000, 2]])
 })
+
+import { supplyRows } from '../src/lib/calc.js'
+test('耗材：用量 = 準備 − 剩餘，未填不算；已移除的耗材仍列出', () => {
+  const items = [{ id: 'cup', name: '試飲杯', unit: '條' }, { id: 'bag', name: '手提袋', unit: '個' }]
+  const rec = { cup: { prep: 10, left: 3 }, bag: { prep: 50 }, old: { name: '攪拌棒', unit: '包', prep: 2, left: 0 } }
+  const r = supplyRows(items, rec)
+  assert.equal(r.length, 3)
+  assert.deepEqual(r[0], { id: 'cup', name: '試飲杯', unit: '條', prep: 10, left: 3, used: 7 })
+  assert.equal(r[1].used, null)
+  assert.equal(r[2].name, '攪拌棒'); assert.equal(r[2].used, 2)
+  assert.deepEqual(supplyRows(items, {}).map((x) => x.used), [null, null])
+})

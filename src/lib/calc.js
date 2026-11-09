@@ -332,3 +332,18 @@ export function soldOutTimes(stockInit = {}, orders = [], adjustments = []) {
   }
   return Object.values(out).sort((a, b) => a.ts - b.ts)
 }
+
+// ---------- 耗材 ----------
+// items：耗材清單 [{ id, name, unit }]；records：本場次紀錄 { id: { prep, left, name, unit } }
+// 本次用量 = 展前準備 − 展後剩餘（兩個都有填才算）
+export function supplyRows(items = [], records = {}) {
+  const num = (v) => (v === '' || v == null ? null : Number(v))
+  const ids = new Set(items.map((x) => x.id))
+  const rows = items.map((it) => ({ ...(records[it.id] || {}), id: it.id, name: it.name, unit: it.unit }))
+  // 已從清單移除、但這個場次有紀錄的耗材也列出來
+  for (const [id, x] of Object.entries(records || {})) if (!ids.has(id)) rows.push({ ...x, id })
+  return rows.map((x) => {
+    const prep = num(x.prep), left = num(x.left)
+    return { id: x.id, name: x.name, unit: x.unit || '', prep, left, used: prep != null && left != null ? prep - left : null }
+  })
+}

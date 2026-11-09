@@ -4,8 +4,7 @@ export const TEMPLATE_LISTS = [
   { key: 'process', name: '處理法', values: ['水洗', '蜜處理', '日曬', '厭氧', '二氧化碳浸漬'] },
   { key: 'weight', name: '重量', values: ['1/4磅', '1/2磅', '1公斤', '3公斤', '5公斤'] },
   { key: 'pack', name: '包裝', values: ['單包', '一盒'] },
-  { key: 'tea', name: '茶種', values: ['烏龍', '金萱', '紅茶'] },
-  { key: 'native', name: '原生山茶', values: ['白茶', '紅茶'] }
+  { key: 'tea', name: '茶種', values: ['烏龍', '金萱', '紅茶'] }
 ]
 
 // 類別顯示順序；「周邊產品」預設是空的，讓攤主自由新增
@@ -23,7 +22,6 @@ export const TEMPLATE_PRODUCTS = [
   { name: '生豆', category: '生豆', unit: '袋', levels: ['variety', 'process', 'weight'], trackStock: true },
   { name: '濾掛', category: '濾掛', unit: '包', levels: ['process', 'pack'], trackStock: true },
   { name: '茶葉', category: '茶葉', unit: '包', levels: ['tea', 'weight'], trackStock: true },
-  { name: '原生山茶', category: '茶葉', unit: '包', levels: ['native', 'weight'], trackStock: true },
   { name: '咖啡花', category: '咖啡周邊茶', unit: '包', levels: ['weight'], trackStock: true },
   { name: '咖啡果皮茶', category: '咖啡周邊茶', unit: '包', levels: ['weight'], trackStock: true },
   { name: '咖啡葉茶', category: '咖啡周邊茶', unit: '包', levels: ['weight'], trackStock: true },
@@ -67,3 +65,11 @@ export function textOn(hex) {
   const L = 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255)
   return (1.05) / (L + 0.05) >= (L + 0.05) / 0.05 ? '#ffffff' : '#1d2721'
 }
+
+// 耗材：內建建議項目（攤主可自行新增、改名、刪除）
+export const DEFAULT_SUPPLIES = [
+  { id: 'cup', name: '試飲杯', unit: '條' },
+  { id: 'filter', name: '濾紙', unit: '包' },
+  { id: 'bag', name: '手提袋', unit: '個' }
+]
+export const SUPPLY_UNITS = ['條', '包', '個', '盒', '張', '捲', '箱']

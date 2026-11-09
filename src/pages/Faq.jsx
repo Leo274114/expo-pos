@@ -47,7 +47,7 @@ export default function Faq() {
           {feats.map((x, i) => <Item key={i} x={x} k={'h' + i} />)}
         </section>
       )}
-      <p className="muted small center">出攤記帳 v{VERSION}・問題與建議請找浩子</p>
+      <p className="muted small center">好攤 v{VERSION}・問題與建議請找浩子</p>
     </div>
   )
 }

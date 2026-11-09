@@ -9,6 +9,7 @@ import Icon from '../components/Icon.jsx'
 import { sortCats } from '../lib/template.js'
 import Help from '../components/Help.jsx'
 import { HELP } from '../lib/help.js'
+import { supplyRows } from '../components/Supplies.jsx'
 
 export default function Summary() {
   const s = useShop()
@@ -166,6 +167,26 @@ export default function Summary() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="card">
+        <h4>耗材（整個場次）<Help>{HELP.supplies}</Help></h4>
+        <div className="table-wrap">
+          <table className="supply-table">
+            <thead><tr><th>耗材</th><th>展前準備</th><th>展後剩餘</th><th>本次用量</th></tr></thead>
+            <tbody>
+              {supplyRows(s).map((x) => (
+                <tr key={x.id}>
+                  <td>{x.name}</td>
+                  <td>{x.prep == null ? '—' : `${x.prep} ${x.unit}`}</td>
+                  <td>{x.left == null ? '—' : `${x.left} ${x.unit}`}</td>
+                  <td className={'used ' + (x.used < 0 ? 'neg' : '')}>{x.used == null ? '—' : `${x.used} ${x.unit}`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="muted small">在「管理 → 耗材」填寫；非必填。</p>
       </div>
     </div>
   )

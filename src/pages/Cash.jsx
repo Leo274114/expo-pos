@@ -7,6 +7,7 @@ import { CASH_REASONS } from '../lib/template.js'
 import DaySelect from '../components/DaySelect.jsx'
 import Help from '../components/Help.jsx'
 import { HELP } from '../lib/help.js'
+import { SupplyLeftReminder } from '../components/Supplies.jsx'
 
 export default function Cash() {
   const s = useShop()
@@ -26,7 +27,7 @@ export default function Cash() {
 
   const saveCount = (kind, counts) => {
     commit(writeBatch(db).set(doc(db, s.eventPath, 'cashCounts', `${day}_${kind}`), { day, kind, counts, ts: Date.now(), device: deviceId }))
-    ui.toast(kind === 'open' ? '已儲存開店零用金' : '已儲存收攤點算', { kind: 'ok' })
+    ui.toast(kind === 'open' ? '已儲存開店零用金' : (s.event?.end && day >= s.event.end ? '已儲存收攤點算。最後一天了，別忘了點耗材剩多少' : '已儲存收攤點算'), { kind: 'ok', ms: 5000 })
   }
   const addMove = () => {
     const a = Number(amt)
@@ -45,6 +46,9 @@ export default function Cash() {
           <CountForm key={'c' + day + (close?.ts || '')} title="收攤點算" data={close} denoms={denomsFor(s.settings)} onSave={(c) => saveCount('close', c)} />
         </div>
       ) : <p className="muted">零錢數量管理已關閉，只計算現金總額。</p>}
+
+      {s.settings.cashCount && close && <SupplyLeftReminder day={day} />}
+      {!s.settings.cashCount && <SupplyLeftReminder day={day} />}
 
       <div className="card recon">
         <h4>現金對帳<Help>{HELP.cashRecon}</Help></h4>

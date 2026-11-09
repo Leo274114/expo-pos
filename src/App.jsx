@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { isConfigured } from './firebase-config.js'
 import { preIndex } from './lib/calc.js'
 import { textOn } from './lib/template.js'
-import { UiProvider, ShopProvider, CartProvider, useShop } from './store.jsx'
+import { UiProvider, ShopProvider, CartProvider, useShop, commit } from './store.jsx'
 import Login from './pages/Login.jsx'
 import Pos from './pages/Pos.jsx'
 import Orders from './pages/Orders.jsx'
@@ -14,6 +14,7 @@ import Admin from './pages/Admin.jsx'
 import Hq from './pages/Hq.jsx'
 import Faq, { DisclaimerList } from './pages/Faq.jsx'
 import Icon from './components/Icon.jsx'
+import { onboardProgress } from './components/Onboarding.jsx'
 
 export default function App() {
   if (!isConfigured) return <SetupNeeded />
@@ -54,6 +55,7 @@ function useOnline() {
 function Shell() {
   const s = useShop()
   const online = useOnline()
+  useActivity(s)
   const preOf = preIndex(s.orders)
   const pending = s.orders.filter((o) => o.pre && o.status !== 'void' && !o.pre.shipped && !preOf(o).cancelled).length
   const links = [
@@ -68,7 +70,7 @@ function Shell() {
   return (
     <div className="shell" style={{ '--top-bg': s.settings.themeColor || '#183d2e', '--top-fg': textOn(s.settings.themeColor || '#183d2e') }}>
       <header className="top">
-        <span className="brand">{s.shop?.logo ? <img className="brand-logo" src={s.shop.logo} alt="" /> : <Icon name="leaf" size={20} />}{s.shop?.name || '出攤記帳'}</span>
+        <span className="brand">{s.shop?.logo ? <img className="brand-logo" src={s.shop.logo} alt="" /> : <img className="brand-logo" src={import.meta.env.BASE_URL + 'icon.svg'} alt="" />}{s.shop?.name || '好攤'}</span>
         <span className="event">{s.event?.name || '未選擇場次'}</span>
         <span className={'net ' + (online ? (s.pendingCount ? 'busy' : 'on') : 'off')} title="尚未上傳到雲端的資料筆數">
           <i />{online
@@ -101,6 +103,27 @@ function Shell() {
   )
 }
 
+// 總覽用：最後開啟 App 時間（每小時最多寫一次）與開店清單進度
+function useActivity(s) {
+  useEffect(() => {
+    if (!s.shopPath) return
+    const key = `lastSeen:${s.shopId}`
+    let last = 0
+    try { last = Number(localStorage.getItem(key)) || 0 } catch { /* 忽略 */ }
+    const now = Date.now()
+    if (now - last < 3600000 && (s.shop?.lastSeenAt || 0) >= last) return
+    try { localStorage.setItem(key, String(now)) } catch { /* 忽略 */ }
+    commit(s.batch().set(s.ref(s.shopPath), { lastSeenAt: now }, { merge: true }))
+  }, [s.shopPath])
+  const p = onboardProgress(s)
+  const cur = s.shop?.onboard
+  useEffect(() => {
+    if (!s.shopPath || !s.loaded) return
+    if (cur && cur.done === p.done && cur.total === p.total && cur.next === p.next) return
+    commit(s.batch().set(s.ref(s.shopPath), { onboard: p }, { merge: true }))
+  }, [s.shopPath, s.loaded, p.done, p.total, p.next])
+}
+
 function SetupNeeded() {
   return (
     <div className="splash setup">
@@ -125,7 +148,7 @@ function Consent() {
   return (
     <div className="splash consent">
       <div className="consent-card">
-        <h2>歡迎使用出攤記帳</h2>
+        <h2>歡迎使用好攤</h2>
         <p className="muted">登入帳號：{s.user?.email}</p>
         <label><span>攤位名稱 <span className="req">*</span> <span className="muted small">必填</span></span>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例：碧湖咖啡" autoFocus maxLength={30}

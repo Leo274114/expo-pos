@@ -1,4 +1,4 @@
-/* 出攤記帳：茶園綠 × 秤台大字
+/* 好攤：茶園綠 × 秤台大字
    一個重點：價格與合計用窄體大字（像市場電子秤），其他保持安靜。 */
 :root {
   --paper: #eef1ec;      /* 山嵐霧白：頁面底 */
@@ -569,3 +569,24 @@ input.need { border-color: var(--cherry) !important; }
   .no-print { display: none !important; }
 }
 .price-sheet + .no-print { margin-top: 14px; }
+
+.login .app-icon { display: block; margin: 0 auto 8px; border-radius: 22px; }
+.onboard-steps .ob-skip { width: auto; min-height: 0; padding: 4px 14px; margin: 2px 0 0 auto; display: block; border: 0; box-shadow: none; }
+.onboard-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 14px; background: var(--tea-soft); color: var(--ink); font-size: 15px; }
+.onboard-banner b { margin-left: 6px; }
+/* 耗材 */
+.supply-table input.num { width: 90px; }
+.supply-table td.used { font-weight: 600; }
+.supply-unit { width: 72px; }
+.supply-reminder { border: 2px solid var(--tea); }
+/* 總覽：狀態燈與逾期清除 */
+.lamp { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: #b8b8b8; }
+.lamp.green { background: #2e9d5b; }
+.lamp.yellow { background: #e8b100; }
+.ob-mini { display: inline-block; width: 60px; height: 6px; background: var(--paper); border-radius: 999px; overflow: hidden; vertical-align: middle; margin-right: 6px; }
+.ob-mini i { display: block; height: 100%; background: var(--tea); }
+.expired-row.has-pending { background: #fff4e5; }
+.supply-item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.supply-item-row input { flex: 1; width: auto; min-width: 0; }
+.supply-item-row input.supply-unit { flex: 0 0 84px; }
+.supply-item-row button { flex: 0 0 auto; }

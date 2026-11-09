@@ -10,7 +10,7 @@ import Modal from '../components/Modal.jsx'
 import { sortCats, catColor } from '../lib/template.js'
 import { parseOrder } from '../lib/voice.js'
 import Icon from '../components/Icon.jsx'
-import Onboarding from '../components/Onboarding.jsx'
+import Onboarding, { OnboardBanner } from '../components/Onboarding.jsx'
 import Help from '../components/Help.jsx'
 import { HELP } from '../lib/help.js'
 
@@ -249,6 +249,7 @@ export default function Pos() {
 
   return (
     <div className="pos-page">
+      <OnboardBanner />
       {ui.notices.length > 0 && (
         <div className="notices">
           {ui.notices.map((n) => (

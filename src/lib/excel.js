@@ -1,5 +1,5 @@
 import { sortCats } from './template.js'
-import { soldOutTimes, preIndex, TYPE_LABEL, METHOD_LABEL, PAY_TYPE_LABEL, timeOf, orderMoves, summarize, countTotal, expectedCash, daysBetween, skuLabel } from './calc.js'
+import { soldOutTimes, preIndex, TYPE_LABEL, METHOD_LABEL, PAY_TYPE_LABEL, timeOf, orderMoves, summarize, countTotal, expectedCash, daysBetween, skuLabel, supplyRows } from './calc.js'
 
 // 下載整個場次的 Excel
 export async function exportEventExcel(s) {
@@ -62,6 +62,7 @@ export async function exportEventExcel(s) {
 
   // 完售紀錄
   add('完售紀錄', soldOutTimes(s.stockInit, orders, s.adjustments).map((x) => ({ 品項: s.labelOf(x.skuId), 完售日期: x.day, 完售時間: timeOf(x.ts), 賣出數量: x.sold })))
+  add('耗材', supplyRows(s.supplyItems, s.supplies).map((x) => ({ 耗材: x.name, 單位: x.unit, 展前準備: x.prep ?? '', 展後剩餘: x.left ?? '', 本次用量: x.used ?? '' })))
 
   // 6. 零錢對帳
   const cashRows = []
@@ -100,7 +101,7 @@ export async function exportEventExcel(s) {
     }
   }))
 
-  const name = `${s.shop?.name || '出攤記帳'}_${s.event?.name || ''}_${new Date().toISOString().slice(0, 10)}.xlsx`.replace(/[\\/:*?"<>|]/g, '_')
+  const name = `${s.shop?.name || '好攤'}_${s.event?.name || ''}_${new Date().toISOString().slice(0, 10)}.xlsx`.replace(/[\\/:*?"<>|]/g, '_')
   XLSX.writeFile(wb, name)
 }
 

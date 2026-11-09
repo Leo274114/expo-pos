@@ -52,6 +52,7 @@ export function writeBatch() {
   const b = {
     set: (ref, val, opts) => { ops.push({ kind: 'set', ref, val, opts }); return b },
     delete: (ref) => { ops.push({ kind: 'delete', ref }); return b },
+    update: (ref, val) => { ops.push({ kind: 'set', ref, val, opts: { merge: true } }); return b },
     commit: async () => { ops.forEach(apply) }
   }
   return b

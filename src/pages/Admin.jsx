@@ -13,9 +13,10 @@ import Icon from '../components/Icon.jsx'
 import { VERSION, CHANGELOG } from '../version.js'
 import { aliasesToText, textToAliases } from '../lib/voice.js'
 import Help from '../components/Help.jsx'
+import { SuppliesTab } from '../components/Supplies.jsx'
 import { HELP } from '../lib/help.js'
 
-const TABS = ['商品與價格', '選項清單', '展覽場次', '庫存調整', '功能設定', '資料下載', `版本 ${VERSION}`]
+const TABS = ['商品與價格', '選項清單', '展覽場次', '耗材', '庫存調整', '功能設定', '資料下載', `版本 ${VERSION}`]
 
 export default function Admin() {
   const [params] = useSearchParams()
@@ -31,10 +32,11 @@ export default function Admin() {
       {tab === 0 && <ProductsTab />}
       {tab === 1 && <ListsTab />}
       {tab === 2 && <EventsTab />}
-      {tab === 3 && <AdjustTab />}
-      {tab === 4 && <SettingsTab />}
-      {tab === 5 && <DataTab />}
-      {tab === 6 && <VersionTab />}
+      {tab === 3 && <SuppliesTab />}
+      {tab === 4 && <AdjustTab />}
+      {tab === 5 && <SettingsTab />}
+      {tab === 6 && <DataTab />}
+      {tab === 7 && <VersionTab />}
     </div>
   )
 }
@@ -504,9 +506,9 @@ function EventsTab() {
   const saveEv = (e, patch) => commit(writeBatch(db).set(doc(db, s.shopPath, 'events', e.id), patch, { merge: true }))
 
   const wipe = async (e) => {
-    const word = prompt(`將永久刪除「${e.name}」的所有資料（銷售、庫存、零錢、收件資料）。\n請先下載 Excel。\n確定刪除請輸入：刪除`)
+    const word = prompt(`將永久刪除「${e.name}」的所有資料（銷售、庫存、零錢、收件資料、耗材）。\n請先下載 Excel。\n確定刪除請輸入：刪除`)
     if (word !== '刪除') return
-    const subs = ['orders', 'stock', 'adjustments', 'cashCounts', 'cashMoves', 'shipping']
+    const subs = ['orders', 'stock', 'adjustments', 'cashCounts', 'cashMoves', 'shipping', 'supplies']
     let n = 0
     for (const c of subs) {
       const snap = await getDocs(collection(db, s.shopPath, 'events', e.id, c))

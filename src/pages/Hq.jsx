@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, doc, getDocs, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
-import { useShop } from '../store.jsx'
-import { fmt, summarize, daysBetween, timeOf } from '../lib/calc.js'
+import { useShop, useUi } from '../store.jsx'
+import { fmt, summarize, daysBetween, timeOf, today, dayOf, preIndex } from '../lib/calc.js'
 import { sortCats } from '../lib/template.js'
 import BarChart from '../components/BarChart.jsx'
 import CountUp from '../components/CountUp.jsx'
@@ -20,6 +20,7 @@ export default function Hq() {
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
   const [pick, setPick] = useState(null) // { shopId, eventId }
+  const [scope, setScope] = useState('event') // 累積客人數：day / event / all
 
   const load = async () => {
     setLoading(true); setErr('')
@@ -28,12 +29,20 @@ export default function Hq() {
       const out = await Promise.all(raw.map(async (sh) => {
         const events = list(await getDocs(collection(db, 'shops', sh.id, 'events'))).sort((a, b) => (b.start || '').localeCompare(a.start || ''))
         const cur = events.find((e) => e.id === sh.currentEventId) || events[0] || null
-        let orders = []
-        if (cur) orders = list(await getDocs(collection(db, 'shops', sh.id, 'events', cur.id, 'orders')))
+        // 每個場次的銷售單（用來算累積客人數、最後活動、逾期場次的未出貨預約）
+        const byEvent = {}
+        await Promise.all(events.map(async (e) => { byEvent[e.id] = list(await getDocs(collection(db, 'shops', sh.id, 'events', e.id, 'orders'))) }))
+        const all = Object.values(byEvent).flat()
+        const orders = cur ? byEvent[cur.id] : []
         const r = summarize(orders)
-        return { ...sh, events, cur, orders, total: r.revenue.total, count: r.orderCount }
+        const lastOrder = all.filter((o) => o.status !== 'void').reduce((m, o) => Math.max(m, o.ts || 0), 0)
+        return {
+          ...sh, events, cur, orders, byEvent, total: r.revenue.total, count: r.orderCount, lastOrder,
+          lastActive: Math.max(lastOrder, sh.lastSeenAt || 0),
+          customers: { day: summarize(all, today()).orderCount, event: r.orderCount, all: summarize(all).orderCount }
+        }
       }))
-      out.sort((a, b) => b.total - a.total)
+      out.sort((a, b) => b.lastActive - a.lastActive)
       setShops(out)
     } catch (e) {
       setErr(e.code === 'permission-denied' ? '沒有權限：請確認 Firestore 的 admins 集合有你的帳號，且安全規則已發布。' : (e.code || e.message))
@@ -75,30 +84,163 @@ export default function Hq() {
       </div>
 
       <div className="card">
-        <h4>各攤位<Help>{HELP.hq}</Help></h4>
+        <div className="row between wrap">
+          <h4>各攤位<Help>{HELP.hq}</Help><Help>{HELP.hqActivity}</Help></h4>
+          <div className="seg small-seg">
+            {[['day', '今天'], ['event', '本場次'], ['all', '全部']].map(([k, l]) => (
+              <button key={k} className={scope === k ? 'on' : ''} onClick={() => setScope(k)}>{l}</button>
+            ))}
+          </div>
+        </div>
         <div className="table-wrap">
           <table className="hq-table">
-            <thead><tr><th>攤位</th><th>帳號</th><th>目前場次</th><th>營業額</th><th>筆數</th><th>加入日期</th><th></th></tr></thead>
+            <thead><tr><th>攤位</th><th>最後活動</th><th>開店清單</th><th>目前場次</th><th>營業額</th><th>客人數<div className="muted small">{{ day: '今天', event: '本場次', all: '全部' }[scope]}</div></th><th>帳號</th><th></th></tr></thead>
             <tbody>
-              {all.map((x) => (
-                <tr key={x.id} className={pick?.shopId === x.id ? 'on' : ''}>
-                  <td>{x.logo && <img className="hq-logo" src={x.logo} alt="" />}<b>{x.name || '（未命名）'}</b>{x.id === s.shopId && <span className="badge">我</span>}</td>
-                  <td className="muted small">{x.ownerEmail || '—'}</td>
-                  <td>{x.cur ? `${x.cur.name}` : <span className="muted">尚未建立</span>}</td>
-                  <td className="num big-cell">{fmt(x.total)}</td>
-                  <td className="num">{x.count}</td>
-                  <td className="muted small">{fmtDate(x.consentAt || x.createdAt)}</td>
-                  <td><button className="small-btn" disabled={!x.cur} onClick={() => setPick({ shopId: x.id, eventId: x.cur?.id })}>看明細</button></td>
-                </tr>
-              ))}
-              {!all.length && !loading && <tr><td colSpan={7} className="muted center">還沒有攤位</td></tr>}
+              {all.map((x) => {
+                const lamp = lampOf(x.lastOrder)
+                const ob = x.onboard
+                return (
+                  <tr key={x.id} className={pick?.shopId === x.id ? 'on' : ''}>
+                    <td><i className={'lamp ' + lamp.cls} title={lamp.text} />{x.logo && <img className="hq-logo" src={x.logo} alt="" />}<b>{x.name || '（未命名）'}</b>{x.id === s.shopId && <span className="badge">我</span>}</td>
+                    <td className="small">{ago(x.lastActive)}</td>
+                    <td className="small">{ob ? (
+                      <><span className="ob-mini"><i style={{ width: `${(ob.done / ob.total) * 100}%` }} /></span>{ob.done}／{ob.total}{ob.next && <div className="muted">卡在：{ob.next}</div>}</>
+                    ) : <span className="muted">—</span>}</td>
+                    <td>{x.cur ? <>{x.cur.name}<div className="muted small">{x.cur.start}～{x.cur.end}</div></> : <span className="muted">尚未建立</span>}</td>
+                    <td className="num big-cell">{fmt(x.total)}</td>
+                    <td className="num">{x.customers[scope]}</td>
+                    <td className="muted small">{x.ownerEmail || '—'}<div>加入 {fmtDate(x.consentAt || x.createdAt)}</div></td>
+                    <td><button className="small-btn" disabled={!x.cur} onClick={() => setPick({ shopId: x.id, eventId: x.cur?.id })}>看明細</button></td>
+                  </tr>
+                )
+              })}
+              {!all.length && !loading && <tr><td colSpan={8} className="muted center">還沒有攤位</td></tr>}
             </tbody>
           </table>
         </div>
+        <p className="muted small"><i className="lamp green" />今天有單　<i className="lamp yellow" />7 天內有單　<i className="lamp" />超過 7 天或還沒開賣</p>
       </div>
+
+      <PurgeExpired shops={all} onDone={load} />
 
       {pick && <ShopDetail shop={all.find((x) => x.id === pick.shopId)} eventId={pick.eventId}
         onEvent={(eventId) => setPick({ ...pick, eventId })} onClose={() => setPick(null)} />}
+    </div>
+  )
+}
+
+// 狀態燈：看最後一筆單據
+function lampOf(ts) {
+  if (!ts) return { cls: '', text: '還沒開賣' }
+  if (dayOf(ts) === today()) return { cls: 'green', text: '今天有單' }
+  if (Date.now() - ts < 7 * 86400000) return { cls: 'yellow', text: '7 天內有單' }
+  return { cls: '', text: '超過 7 天沒有單' }
+}
+
+function ago(ts) {
+  if (!ts) return <span className="muted">—</span>
+  const m = Math.floor((Date.now() - ts) / 60000)
+  const text = m < 1 ? '剛剛' : m < 60 ? `${m} 分鐘前` : m < 1440 ? `${Math.floor(m / 60)} 小時前` : `${Math.floor(m / 1440)} 天前`
+  return <span title={new Date(ts).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}>{text}</span>
+}
+
+// 逾期：結束日 + 14 天（與安全規則相同，以 UTC 午夜計）
+export const expiredAt = (end) => {
+  const [y, m, d] = (end || '').split('-').map(Number)
+  return y ? Date.UTC(y, m - 1, d) + 14 * 86400000 : Infinity
+}
+
+// 清除逾期資料：勾選後一次刪除（攤位與商品設定保留）
+function PurgeExpired({ shops, onDone }) {
+  const { toast } = useUi()
+  const rows = useMemo(() => {
+    const out = []
+    for (const sh of shops) {
+      for (const e of sh.events) {
+        const at = expiredAt(e.end)
+        if (Date.now() <= at) continue
+        const orders = sh.byEvent?.[e.id] || []
+        const preOf = preIndex(orders)
+        const pending = orders.filter((o) => o.pre && o.status !== 'void' && !o.pre.shipped && !preOf(o).cancelled).length
+        out.push({ key: `${sh.id}/${e.id}`, sh, e, orders, pending, days: Math.floor((Date.now() - at) / 86400000) })
+      }
+    }
+    return out
+  }, [shops])
+  const [sel, setSel] = useState({})
+  const [busy, setBusy] = useState('')
+  useEffect(() => { setSel(Object.fromEntries(rows.map((r) => [r.key, r.pending === 0]))) }, [rows])
+
+  const picked = rows.filter((r) => sel[r.key])
+  const toggleShop = (shId, v) => setSel((x) => ({ ...x, ...Object.fromEntries(rows.filter((r) => r.sh.id === shId).map((r) => [r.key, v])) }))
+
+  const run = async () => {
+    if (!picked.length) return
+    const shopsN = new Set(picked.map((r) => r.sh.id)).size
+    if (prompt(`將永久刪除 ${shopsN} 個攤位、${picked.length} 個逾期場次的銷售、庫存、零錢、收件資料與耗材紀錄（攤位與商品設定保留）。\n確定刪除請輸入：刪除`) !== '刪除') return
+    let n = 0
+    try {
+      for (const r of picked) {
+        setBusy(`刪除中：${r.sh.name}・${r.e.name}`)
+        const base = ['shops', r.sh.id, 'events', r.e.id]
+        const refs = r.orders.map((o) => doc(db, ...base, 'orders', o.id))
+        // 收件資料讀不到，按訂單 ID 刪除
+        for (const o of r.orders) if (o.pre) refs.push(doc(db, ...base, 'shipping', o.id))
+        for (const c of ['stock', 'adjustments', 'supplies', 'cashCounts', 'cashMoves']) {
+          const snap = await getDocs(collection(db, ...base, c))
+          snap.docs.forEach((d) => refs.push(d.ref))
+        }
+        for (let i = 0; i < refs.length; i += 400) {
+          const b = writeBatch(db)
+          refs.slice(i, i + 400).forEach((x) => b.delete(x))
+          await b.commit()
+        }
+        n += refs.length
+        const b = writeBatch(db)
+        b.delete(doc(db, ...base))
+        if (r.sh.currentEventId === r.e.id) b.update(doc(db, 'shops', r.sh.id), { currentEventId: null })
+        await b.commit()
+      }
+      toast(`已清除 ${picked.length} 個場次、${n} 筆資料`, { kind: 'ok' })
+    } catch (e) {
+      toast('刪除失敗：' + (e.code === 'permission-denied' ? '沒有權限，請確認已發布新版安全規則' : (e.code || e.message)), { kind: 'error', ms: 8000 })
+    }
+    setBusy('')
+    onDone()
+  }
+
+  return (
+    <div className="card">
+      <h4>清除逾期資料<Help>{HELP.hqPurge}</Help></h4>
+      {!rows.length ? <p className="muted">目前沒有逾期的場次（展覽結束 14 天後才會出現在這裡）。</p> : (
+        <>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th></th><th>攤位</th><th>場次</th><th>結束日</th><th>逾期</th><th>單據</th><th>未出貨預約</th></tr></thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={r.key} className={'expired-row' + (r.pending ? ' has-pending' : '')}>
+                    <td><input type="checkbox" checked={!!sel[r.key]} onChange={(e) => setSel({ ...sel, [r.key]: e.target.checked })} /></td>
+                    <td>{(i === 0 || rows[i - 1].sh.id !== r.sh.id) ? (
+                      <label className="check"><input type="checkbox" checked={rows.filter((x) => x.sh.id === r.sh.id).every((x) => sel[x.key])}
+                        onChange={(e) => toggleShop(r.sh.id, e.target.checked)} /><b>{r.sh.name || '（未命名）'}</b></label>
+                    ) : ''}</td>
+                    <td>{r.e.name}</td>
+                    <td>{r.e.end}</td>
+                    <td>{r.days} 天</td>
+                    <td className="num">{r.orders.length}</td>
+                    <td className={r.pending ? 'neg' : 'muted'}>{r.pending ? `還有 ${r.pending} 筆` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="row between wrap" style={{ marginTop: 10 }}>
+            <span className="muted small">已勾選 {picked.length} 個場次{busy && `・${busy}`}</span>
+            <button className="danger" disabled={!picked.length || !!busy} onClick={run}>刪除勾選項目</button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

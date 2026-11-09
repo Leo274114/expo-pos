@@ -4,16 +4,33 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
+    // 場次是否已逾期：結束日 + 14 天（以 UTC 午夜計，比台灣時間晚 8 小時，寧可晚不可早）
+    function expiredEnd(end) {
+      let p = end.split('-');
+      return request.time > timestamp.date(int(p[0]), int(p[1]), int(p[2])) + duration.value(14, 'd');
+    }
+    function expired(shopId, eventId) {
+      return expiredEnd(get(/databases/$(database)/documents/shops/$(shopId)/events/$(eventId)).data.end);
+    }
+
     // 每位使用者只能讀寫自己的攤位（攤位 ID = 自己的 uid）
     match /shops/{shopId} {
       allow read, write: if request.auth != null && request.auth.uid == shopId;
       allow read: if isAdmin();
+      // 系統管理者清除逾期場次後，只能把「目前場次」清空，不能改其他欄位
+      allow update: if isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentEventId']);
       match /{path=**} {
         allow read, write: if request.auth != null && request.auth.uid == shopId;
       }
-      // 系統管理者（浩子）可讀銷售資料；讀不到庫存（初始庫存、庫存調整）與宅配收件資料
+      // 系統管理者（浩子）可讀銷售資料；讀不到庫存（初始庫存、庫存調整）、耗材與宅配收件資料
       match /events/{eventId}/{coll}/{docId} {
-        allow read: if isAdmin() && !(coll in ['shipping', 'stock', 'adjustments']);
+        allow read: if isAdmin() && !(coll in ['shipping', 'stock', 'adjustments', 'supplies']);
+        // 逾期後才能列出庫存、調整與耗材（只為了取得文件 ID 刪除）；收件資料永遠讀不到，只能按訂單 ID 刪除
+        allow read: if isAdmin() && coll in ['stock', 'adjustments', 'supplies'] && expired(shopId, eventId);
+        allow delete: if isAdmin() && expired(shopId, eventId);
+      }
+      match /events/{eventId} {
+        allow delete: if isAdmin() && expiredEnd(resource.data.end);
       }
       match /{coll}/{docId} {
         allow read: if isAdmin();
