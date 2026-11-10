@@ -541,8 +541,9 @@ function EventsTab() {
     const eid = shareIt ? s.newId('expos') : null
     // 自己的場次也記住來源（expoId），總覽才能把同一個展覽的攤位放在一起
     const b = addEvent({ ...f, name, ...(eid ? { expoId: eid } : {}) })
-    if (eid) b.set(doc(db, 'expos', eid), { name, start: f.start, end: f.end, hours: f.hours, createdBy: s.user.uid, createdAt: Date.now() })
     commit(b)
+    // 展覽清單分開寫：就算安全規則還沒發布、分享失敗，自己的場次也會建好
+    if (eid) commit(writeBatch(db).set(doc(db, 'expos', eid), { name, start: f.start, end: f.end, hours: f.hours, createdBy: s.user.uid, createdAt: Date.now() }))
     if (eid) setTimeout(loadExpos, 800)
     setDup(null)
     setF({ name: '', start: '', end: '', hours: { ...DEFAULT_HOURS, days: {} } })
@@ -550,10 +551,10 @@ function EventsTab() {
   }
   const shareEvent = (e) => {
     const eid = s.newId('expos')
-    const b = writeBatch(db)
-    b.set(doc(db, 'expos', eid), { name: e.name, start: e.start, end: e.end, hours: e.hours || { ...DEFAULT_HOURS, days: {} }, createdBy: s.user.uid, createdAt: Date.now() })
-    b.set(doc(db, s.shopPath, 'events', e.id), { expoId: eid }, { merge: true })
-    commit(b)
+    writeBatch(db).set(doc(db, 'expos', eid), { name: e.name, start: e.start, end: e.end, hours: e.hours || { ...DEFAULT_HOURS, days: {} }, createdBy: s.user.uid, createdAt: Date.now() })
+      .commit()
+      .then(() => commit(writeBatch(db).set(doc(db, s.shopPath, 'events', e.id), { expoId: eid }, { merge: true })))
+      .catch((x) => toast('分享失敗：' + (x.code === 'permission-denied' ? '安全規則還沒更新' : x.message), { kind: 'error' }))
     toast('已分享到展覽清單')
     setTimeout(loadExpos, 800)
   }
