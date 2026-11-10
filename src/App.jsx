@@ -12,6 +12,7 @@ import Summary from './pages/Summary.jsx'
 import Cash from './pages/Cash.jsx'
 import Admin from './pages/Admin.jsx'
 import Hq from './pages/Hq.jsx'
+import Analysis from './pages/Analysis.jsx'
 import Faq, { DisclaimerList } from './pages/Faq.jsx'
 import Icon from './components/Icon.jsx'
 import { onboardProgress } from './components/Onboarding.jsx'
@@ -65,6 +66,7 @@ function Shell() {
     ['/cash', 'coins', '零錢'],
     ['/admin', 'gear', '管理'],
     ...(s.isAdmin ? [['/hq', 'users', '總覽']] : []),
+    ['/analysis', 'trend', '分析'],
     ['/shipping', 'box', '預購單', pending]
   ]
   return (
@@ -88,6 +90,7 @@ function Shell() {
           <Route path="/cash" element={<Cash />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/hq" element={<Hq />} />
+          <Route path="/analysis" element={<Analysis />} />
           <Route path="/help" element={<Faq />} />
         </Routes>
       </main>

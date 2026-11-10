@@ -4,7 +4,7 @@ import { signOut } from 'firebase/auth'
 import { auth, db } from '../firebase.js'
 import { useShop, useUi, commit, deviceId } from '../store.jsx'
 import { TEMPLATE_LISTS, TEMPLATE_PRODUCTS, ADJUST_REASONS, CATEGORY_ORDER, CATEGORY_HINT, sortCats, THEME_PRESETS, textOn } from '../lib/template.js'
-import { preIndex, componentAvail, fmt, PAY_TYPE_LABEL, skuLabel, today, dayOf, timeOf } from '../lib/calc.js'
+import { preIndex, componentAvail, fmt, PAY_TYPE_LABEL, skuLabel, today, dayOf, timeOf, daysBetween } from '../lib/calc.js'
 import { exportEventExcel, exportPriceList, priceListRows } from '../lib/excel.js'
 import DriveBackup from '../components/DriveBackup.jsx'
 import Modal from '../components/Modal.jsx'
@@ -16,6 +16,7 @@ import { aliasesToText, textToAliases } from '../lib/voice.js'
 import Help from '../components/Help.jsx'
 import { SuppliesTab } from '../components/Supplies.jsx'
 import { HELP } from '../lib/help.js'
+import { withLog, DEFAULT_HOURS } from '../lib/analysis.js'
 
 const TABS = ['商品與價格', '選項清單', '展覽場次', '耗材', '庫存調整', '功能設定', '資料下載', `版本 ${VERSION}`]
 
@@ -302,7 +303,7 @@ function ProductCard({ p, open, onToggle, move }) {
         <div className="product-body">
           <div className="row gap">
             <button onClick={() => setEdit(true)}>編輯商品</button>
-            <button onClick={() => commit(writeBatch(db).set(doc(db, s.shopPath, 'products', p.id), { active: p.active === false }, { merge: true }))}>
+            <button onClick={() => commit(writeBatch(db).set(doc(db, s.shopPath, 'products', p.id), withLog(p, p.active === false), { merge: true }))}>
               {p.active === false ? '啟用' : '停用'}
             </button>
             <button className="danger" onClick={removeProduct}>刪除</button>
@@ -371,7 +372,7 @@ function SkuTable({ product, skus }) {
                     {comps.length ? comps.map((c) => `${s.labelOf(c.skuId).split('・').slice(-2).join('・')}×${c.qty}`).join('＋') : '設定'}
                   </button>
                 </td>
-                <td><Switch checked={k.active !== false} onChange={(v) => setSku(k.id, { active: v })} /></td>
+                <td><Switch checked={k.active !== false} onChange={(v) => setSku(k.id, withLog(k, v))} /></td>
                 <td><button className="icon" onClick={() => del(k)} aria-label="刪除"><Icon name="trash" size={20} /></button></td>
               </tr>
             )
@@ -493,7 +494,7 @@ function ListCard({ l }) {
 function EventsTab() {
   const s = useShop()
   const { toast } = useUi()
-  const [f, setF] = useState({ name: '2026 南港咖啡展', start: '2026-11-13', end: '2026-11-16' })
+  const [f, setF] = useState({ name: '2026 南港咖啡展', start: '2026-11-13', end: '2026-11-16', hours: { ...DEFAULT_HOURS, days: {} } })
   const create = () => {
     if (!f.name || !f.start || !f.end || f.end < f.start) return toast('請填寫名稱與正確日期', { kind: 'error' })
     const id = s.newId(`${s.shopPath}/events`)
@@ -541,6 +542,7 @@ function EventsTab() {
               <label>開始<input type="date" value={e.start} onChange={(x) => saveEv(e, { start: x.target.value })} /></label>
               <label>結束<input type="date" value={e.end} onChange={(x) => saveEv(e, { end: x.target.value })} /></label>
             </div>
+            <HoursEditor value={e.hours} start={e.start} end={e.end} onChange={(hours) => saveEv(e, { hours })} />
             <p className={expired ? 'warn' : 'muted'}>
               資料保留至 {del}（展覽結束後 14 天）{expired && '：已到期，請下載 Excel 後刪除'}
             </p>
@@ -555,8 +557,45 @@ function EventsTab() {
           <label>開始<input type="date" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} /></label>
           <label>結束<input type="date" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} /></label>
         </div>
+        <HoursEditor value={f.hours} start={f.start} end={f.end} onChange={(hours) => setF({ ...f, hours })} />
         <button className="primary" onClick={create}>建立</button>
       </div>
+    </div>
+  )
+}
+
+// 營業時間：填一組自動套用到每一天，哪天不同再另外改
+function HoursEditor({ value, start, end, onChange }) {
+  const v = { open: value?.open || DEFAULT_HOURS.open, close: value?.close || DEFAULT_HOURS.close, days: value?.days || {} }
+  const days = daysBetween(start, end)
+  const setBase = (patch) => onChange({ ...v, ...patch })
+  const setDay = (d, patch) => {
+    const cur = { open: v.days[d]?.open || v.open, close: v.days[d]?.close || v.close, ...patch }
+    const days2 = { ...v.days }
+    // 用 null 表示「同上方時間」（合併寫入時刪除鍵不會生效）
+    days2[d] = cur.open === v.open && cur.close === v.close ? null : cur
+    onChange({ ...v, days: days2 })
+  }
+  return (
+    <div className="hours-box">
+      <h4 style={{ margin: '10px 0 4px' }}>營業時間<Help>{HELP.hours}</Help></h4>
+      <div className="row gap">
+        <label>開門<input type="time" value={v.open} onChange={(x) => x.target.value && setBase({ open: x.target.value })} /></label>
+        <label>收攤<input type="time" value={v.close} onChange={(x) => x.target.value && setBase({ close: x.target.value })} /></label>
+      </div>
+      {days.length > 1 && (
+        <div className="hours-grid">
+          {days.map((d) => {
+            const o = v.days[d]
+            return [
+              <span key={d + 'd'}>{d.slice(5).replace('-', '/')}</span>,
+              <input key={d + 'o'} type="time" aria-label={`${d} 開門`} value={o?.open || v.open} onChange={(x) => x.target.value && setDay(d, { open: x.target.value })} />,
+              <input key={d + 'c'} type="time" aria-label={`${d} 收攤`} value={o?.close || v.close} onChange={(x) => x.target.value && setDay(d, { close: x.target.value })} />,
+              o ? <button key={d + 'r'} className="small-btn" onClick={() => setDay(d, { open: v.open, close: v.close })}>同上</button> : <span key={d + 'r'} className="muted">同上方時間</span>
+            ]
+          })}
+        </div>
+      )}
     </div>
   )
 }
