@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS = {
   prePayTypes: { full: true, deposit: true, cod: true },
   freeShipThreshold: 0,   // 0 = 未設定
   voiceEnabled: false,    // 語音輸入（第二階段）
+  showWaiting: true,      // 收銀畫面顯示「未開賣」灰色按鈕
   lowStock: { 5: true, 3: true, 1: true }
 }
 

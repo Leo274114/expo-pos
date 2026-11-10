@@ -42,10 +42,12 @@ export default function Summary() {
   const soldOut = soldOutTimes(s.stockInit, s.orders, s.adjustments)
   const startTs = Object.fromEntries(eventDays(s.event).map((d) => [d, null]))
   for (const o of s.orders) if (o.status !== 'void' && (startTs[o.day] == null || o.ts < startTs[o.day])) startTs[o.day] = o.ts
+  // 低庫存清單跟著管理頁的通知門檻（5／3／1 取勾選中最大的；都沒勾就用 5）
+  const lowTh = Math.max(0, ...Object.entries(s.settings.lowStock || {}).filter(([, on]) => on).map(([k]) => Number(k))) || 5
   const low = s.skus
     .filter((k) => k.active !== false && !(k.components || []).length && s.productById[k.productId]?.trackStock !== false && s.productById[k.productId]?.active !== false)
     .map((k) => ({ k, n: s.stock[k.id] ?? 0 }))
-    .filter((x) => x.n <= 5)
+    .filter((x) => x.n <= lowTh)
     .sort((a, b) => a.n - b.n)
 
   const open = s.cashCounts[`${day}_open`], close = s.cashCounts[`${day}_close`]
@@ -138,7 +140,7 @@ export default function Summary() {
           <LineChart data={daily} height={150} />
         </InView>
         <div className="card">
-          <h4>低庫存（≤ 5）</h4>
+          <h4>低庫存（≤ {lowTh}）</h4>
           {low.map(({ k, n }) => (
             <div key={k.id} className="row between"><span>{skuLabel(k, s.productById[k.productId])}</span><b className={n <= 0 ? 'neg' : ''}>{n <= 0 ? '售完' : n}</b></div>
           ))}

@@ -198,6 +198,11 @@ textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); bor
 .pbtn.soldout { background: repeating-linear-gradient(-45deg, #f4f5f3, #f4f5f3 8px, #eceeea 8px, #eceeea 16px); }
 .pbtn.soldout .pprice { color: var(--muted); }
 .pbtn.soldout .pstock { color: var(--cherry); font-weight: 700; }
+/* 未開賣：灰色、虛線框，點一下確認開賣 */
+.pbtn.waiting { background: #eef0ed; border-style: dashed; border-color: #b9c1bb; color: #7d877f; box-shadow: none; }
+.pbtn.waiting::before { opacity: 0.35; }
+.pbtn.waiting .pprice { color: #8b948d; }
+.pbtn.waiting .pstock { color: #5f6a62; font-weight: 700; }
 
 .cart-pane { display: flex; flex-direction: column; border-left: 1px solid var(--line); background: #e4e9e4; min-height: 0; }
 .cart-toggle { display: none; }
@@ -227,10 +232,14 @@ textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); bor
 .cart-card-head { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0 8px; border-bottom: 2px dashed var(--line); font-size: 14px; color: var(--muted); }
 .cart-card-head b { color: var(--ink); font-size: 17px; }
 .empty-cart { color: var(--muted); text-align: center; padding: 40px 10px; }
-.cart-line { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 4px; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+.cart-line { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: 'name name name' 'qty price trash'; align-items: center; column-gap: 4px; row-gap: 2px; padding: 10px 0 6px; border-bottom: 1px dashed var(--line); }
+.cart-line .cl-name { grid-area: name; }
+.cart-line .cl-qty { grid-area: qty; margin-left: -6px; }
+.cart-line .cl-price { grid-area: price; justify-self: end; }
+.cart-line .trash { grid-area: trash; }
 .cart-line.ret { background: linear-gradient(90deg, var(--cherry-soft), transparent 70%); margin: 0 -14px; padding-left: 14px; padding-right: 14px; }
 .cart-line.pre { background: linear-gradient(90deg, var(--sky-soft), transparent 70%); margin: 0 -14px; padding-left: 14px; padding-right: 14px; }
-.cl-name { font-size: 15px; line-height: 1.35; }
+.cl-name { font-size: 16px; line-height: 1.35; font-weight: 600; overflow-wrap: anywhere; }
 .cl-name .badge { margin: 0 6px 0 0; }
 .cl-qty { display: flex; align-items: center; gap: 2px; }
 .cl-qty button { min-width: 38px; min-height: 38px; padding: 0; border-radius: 50%; color: var(--tea); }

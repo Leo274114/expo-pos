@@ -12,6 +12,7 @@ import { parseOrder } from '../lib/voice.js'
 import Icon from '../components/Icon.jsx'
 import Onboarding, { OnboardBanner } from '../components/Onboarding.jsx'
 import Help from '../components/Help.jsx'
+import { withLog } from '../lib/analysis.js'
 import { HELP } from '../lib/help.js'
 
 let lineSeq = 0
@@ -38,6 +39,7 @@ export default function Pos() {
   const [flash, setFlash] = useState(null) // 剛加入的品項，用來做亮一下的回饋
   const [discountOpen, setDiscountOpen] = useState(false)
   const [checkout, setCheckout] = useState(false)
+  const [openAsk, setOpenAsk] = useState(null) // 未開賣的組合：確認開賣
   const [cartOpen, setCartOpen] = useState(false) // 手機版購物車展開
 
   const activeSkus = useMemo(
@@ -60,8 +62,6 @@ export default function Pos() {
     const ok = new Set(activeSkus.map((k) => k.id))
     return Object.entries(m).filter(([id]) => ok.has(id)).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([id, n]) => ({ sku: s.skuById[id], n }))
   }, [s.orders, activeSkus, s.skuById])
-  const cats = [...(hot.length ? ['熱賣'] : []), ...sortCats([...new Set(products.map((p) => p.category || '未分類'))], s.settings.catOrder)]
-  const curCat = cats.includes(cat) ? cat : cats[0]
 
   // 所有暫存單中已佔用的數量（現貨）
   // 套裝／盒裝的組成也算佔用
@@ -81,6 +81,27 @@ export default function Pos() {
   const leftOf = (skuId) => (tracksId(skuId) ? (s.stock[skuId] ?? 0) - reserved(skuId) : Infinity)
   const tracks = (sku) => (sku.components?.length ? sku.components.some((c) => tracksId(c.skuId)) : s.productById[sku.productId]?.trackStock !== false)
   const avail = (sku) => (sku.components?.length ? componentAvail(sku.components, leftOf) : leftOf(sku.id))
+
+  // 未開賣：組合或商品已停用，但價格與庫存都已填好（現做品項只看價格）。收銀畫面以灰色顯示，點一下確認即可開賣
+  const isOn = (k) => k.active !== false && s.productById[k.productId]?.active !== false
+  const waitingSkus = s.settings.showWaiting === false ? [] : s.skus.filter((k) =>
+    s.productById[k.productId] && !isOn(k) && Number(k.price) > 0 && (!tracks(k) || avail(k) > 0))
+  const posSkus = waitingSkus.length ? s.skus.filter((k) => isOn(k) || waitingSkus.includes(k)) : activeSkus
+  const posProducts = waitingSkus.length ? s.products.filter((p) => posSkus.some((k) => k.productId === p.id)) : products
+
+  const cats = [...(hot.length ? ['熱賣'] : []), ...sortCats([...new Set(posProducts.map((p) => p.category || '未分類'))], s.settings.catOrder)]
+  const curCat = cats.includes(cat) ? cat : cats[0]
+
+  const openSku = (k, thenAdd) => {
+    const p = s.productById[k.productId]
+    const b = writeBatch(db)
+    if (k.active === false) b.set(doc(db, s.shopPath, 'skus', k.id), withLog(k, true), { merge: true })
+    if (p && p.active === false) b.set(doc(db, s.shopPath, 'products', p.id), withLog(p, true), { merge: true })
+    commit(b)
+    ui.toast(`「${skuLabel(k, p)}」已開賣`)
+    if (thenAdd) pushLine(k, 1, false)
+  }
+  const tapSku = (k) => (isOn(k) ? addSku(k) : setOpenAsk(k))
 
   const updateLines = (fn, cartId = cart.id) => cs.update(cartId, (c) => ({ ...c, lines: fn(c.lines) }))
 
@@ -158,6 +179,13 @@ export default function Pos() {
       ms: 5000,
       action: { label: '復原', onClick: () => cs.update(cartId, (c) => { const ls = [...c.lines]; ls.splice(Math.min(idx, ls.length), 0, line); return { ...c, lines: ls } }) }
     })
+  }
+
+  // 清除整張客人卡片：不跳確認視窗（iPad 上原生確認視窗可能被擋），改成幾秒內可以「復原」
+  const clearCart = () => {
+    const c = cart, idx = cs.carts.findIndex((x) => x.id === c.id)
+    cs.remove(c.id)
+    if (c.lines.length) ui.toast(`已清除「${c.name}」`, { ms: 6000, action: { label: '復原', onClick: () => cs.restore(c, idx) } })
   }
 
   const t = cartTotals(cart, {})
@@ -241,10 +269,10 @@ export default function Pos() {
     window.addEventListener('pointerup', up)
   }
 
-  if (!s.eventId || !activeSkus.some((k) => Number(k.price) > 0)) return <div className="page"><Onboarding /></div>
+  if (!s.eventId || !posSkus.some((k) => Number(k.price) > 0)) return <div className="page"><Onboarding /></div>
 
   const searchHits = q.trim()
-    ? activeSkus.map((k) => ({ k, label: skuLabel(k, s.productById[k.productId]) })).filter((x) => x.label.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 40)
+    ? posSkus.map((k) => ({ k, label: skuLabel(k, s.productById[k.productId]) })).filter((x) => x.label.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 40)
     : null
 
   return (
@@ -286,7 +314,7 @@ export default function Pos() {
           {searchHits ? (
             <div className="grid">
               {searchHits.map(({ k, label }) => (
-                <SkuButton key={k.id} sku={k} label={label} cat={s.productById[k.productId]?.category} avail={avail(k)} onClick={() => { addSku(k); }} />
+                <SkuButton key={k.id} sku={k} label={label} cat={s.productById[k.productId]?.category} avail={avail(k)} waiting={!isOn(k)} onClick={() => tapSku(k)} />
               ))}
               {!searchHits.length && <p className="muted">找不到</p>}
             </div>
@@ -302,20 +330,21 @@ export default function Pos() {
                     <SkuButton sku={sku} label={skuLabel(sku, s.productById[sku.productId])} cat={s.productById[sku.productId]?.category} avail={avail(sku)} onClick={() => addSku(sku)} />
                   </div>
                 ))}
-                {curCat !== '熱賣' && products.filter((p) => (p.category || '未分類') === curCat).map((p) => {
-                  const ks = activeSkus.filter((k) => k.productId === p.id)
+                {curCat !== '熱賣' && posProducts.filter((p) => (p.category || '未分類') === curCat).map((p) => {
+                  const ks = posSkus.filter((k) => k.productId === p.id)
                   const single = !(p.levels || []).length && ks.length === 1
-                  if (single) return <SkuButton key={p.id} sku={ks[0]} label={p.name} cat={p.category} avail={avail(ks[0])} onClick={() => addSku(ks[0])} />
+                  if (single) return <SkuButton key={p.id} sku={ks[0]} label={p.name} cat={p.category} avail={avail(ks[0])} waiting={!isOn(ks[0])} onClick={() => tapSku(ks[0])} />
                   const minP = Math.min(...ks.map(effectivePrice)), maxP = Math.max(...ks.map(effectivePrice))
+                  const nOn = ks.filter(isOn).length
                   return (
-                    <button key={p.id} className="pbtn" style={{ '--cat': catColor(p.category) }} onClick={() => setPicker({ product: p, chosen: [] })}>
+                    <button key={p.id} className={'pbtn' + (nOn ? '' : ' waiting')} style={{ '--cat': catColor(p.category) }} onClick={() => setPicker({ product: p, chosen: [] })}>
                       <span className="pname">{p.name}</span>
                       <span className="pprice num">{minP === maxP ? fmt(minP) : `${fmt(minP)}–${fmt(maxP).replace('$', '')}`}</span>
-                      <span className="pstock">{ks.length} 種選擇</span>
+                      <span className="pstock">{nOn ? `${nOn} 種選擇` : '未開賣'}{nOn && nOn < ks.length ? `・${ks.length - nOn} 未開賣` : ''}</span>
                     </button>
                   )
                 })}
-                {!products.length && <p className="muted">還沒有可販賣的商品，請到「管理」新增並設定價格。</p>}
+                {!posProducts.length && <p className="muted">還沒有可販賣的商品，請到「管理」新增並設定價格。</p>}
               </div>
             </>
           )}
@@ -402,7 +431,7 @@ export default function Pos() {
               )
             })()}
             <div className="row gap">
-              <button onClick={() => { if (!cart.lines.length || confirm(`清除「${cart.name}」？`)) cs.remove(cart.id) }}>清除</button>
+              <button onClick={clearCart}>清除</button>
               <button className="primary big" disabled={!cart.lines.length} onClick={() => setCheckout(true)}>結帳</button>
             </div>
           </div>
@@ -410,9 +439,25 @@ export default function Pos() {
       </div>
 
       {picker && (
-        <OptionPicker picker={picker} setPicker={setPicker} skus={activeSkus.filter((k) => k.productId === picker.product.id)} avail={avail}
-          onPick={(k) => { setPicker(null); addSku(k) }} />
+        <OptionPicker picker={picker} setPicker={setPicker} skus={posSkus.filter((k) => k.productId === picker.product.id)} avail={avail} isOn={isOn}
+          onPick={(k) => { setPicker(null); tapSku(k) }} />
       )}
+      {openAsk && (() => {
+        const k = openAsk, p = s.productById[k.productId]
+        const others = p?.active === false ? posSkus.filter((x) => x.productId === p.id && x.id !== k.id && x.active !== false).length : 0
+        return (
+          <Modal title="未開賣" onClose={() => setOpenAsk(null)}
+            footer={<>
+              <button onClick={() => setOpenAsk(null)}>取消</button>
+              <button onClick={() => { openSku(k, false); setOpenAsk(null) }}>開賣</button>
+              <button className="primary" onClick={() => { openSku(k, true); setOpenAsk(null) }}>開賣並加入{cart.name}</button>
+            </>}>
+            <p className="big-text">「{skuLabel(k, p)}」還沒開賣，要現在開賣嗎？</p>
+            <p className="muted">開賣時間會記錄下來，分析頁從這一刻起算（開門前開賣算開門時間）。之後要停賣，到「管理 → 商品與價格」關掉啟用開關。</p>
+            {others > 0 && <p className="hint">商品「{p.name}」整個是關閉的，開賣後它底下另外 {others} 個已啟用的組合也會一起開賣。</p>}
+          </Modal>
+        )
+      })()}
       {zero && (
         <Modal title="庫存為 0" onClose={() => setZero(null)}
           footer={<>
@@ -438,21 +483,21 @@ export default function Pos() {
   )
 }
 
-function SkuButton({ sku, label, avail, onClick, cat }) {
-  const out = avail <= 0
-  const low = !out && avail !== Infinity && avail <= 3
+function SkuButton({ sku, label, avail, onClick, cat, waiting }) {
+  const out = !waiting && avail <= 0
+  const low = !out && !waiting && avail !== Infinity && avail <= 3
   return (
-    <button className={'pbtn' + (out ? ' soldout' : '')} style={{ '--cat': catColor(cat) }} onClick={onClick}>
+    <button className={'pbtn' + (out ? ' soldout' : '') + (waiting ? ' waiting' : '')} style={{ '--cat': catColor(cat) }} onClick={onClick}>
       <span className="pname">{label}</span>
       <span className="pprice num">
         {sku.promoPrice != null && sku.promoPrice !== '' && <s>{fmt(sku.price)}</s>}{fmt(effectivePrice(sku))}
       </span>
-      <span className={'pstock' + (low ? ' low' : '')}>{avail === Infinity ? '現做' : out ? '售完' : `剩 ${avail}`}</span>
+      <span className={'pstock' + (low ? ' low' : '')}>{waiting ? '未開賣' : avail === Infinity ? '現做' : out ? '售完' : `剩 ${avail}`}</span>
     </button>
   )
 }
 
-function OptionPicker({ picker, setPicker, skus, avail, onPick }) {
+function OptionPicker({ picker, setPicker, skus, avail, onPick, isOn }) {
   const s = useShop()
   const p = picker.product
   const levels = (p.levels || []).map((id) => s.optionLists.find((l) => l.id === id))
@@ -471,13 +516,14 @@ function OptionPicker({ picker, setPicker, skus, avail, onPick }) {
         {values.map((v) => {
           if (isLast) {
             const k = match.find((x) => x.opts?.[depth] === v)
-            return <SkuButton key={v} sku={k} label={v} cat={p.category} avail={avail(k)} onClick={() => onPick(k)} />
+            return <SkuButton key={v} sku={k} label={v} cat={p.category} avail={avail(k)} waiting={!isOn(k)} onClick={() => onPick(k)} />
           }
           const sub = match.filter((x) => x.opts?.[depth] === v)
-          const left = sub.reduce((a, k) => a + Math.max(0, avail(k) === Infinity ? 0 : avail(k)), 0)
+          const subOn = sub.filter(isOn)
+          const left = subOn.reduce((a, k) => a + Math.max(0, avail(k) === Infinity ? 0 : avail(k)), 0)
           return (
-            <button key={v} className="pbtn" style={{ '--cat': catColor(p.category) }} onClick={() => setPicker({ ...picker, chosen: [...picker.chosen, v] })}>
-              <span className="pname">{v}</span><span className="pstock">{sub.length} 種{left ? `，共剩 ${left}` : ''}</span>
+            <button key={v} className={'pbtn' + (subOn.length ? '' : ' waiting')} style={{ '--cat': catColor(p.category) }} onClick={() => setPicker({ ...picker, chosen: [...picker.chosen, v] })}>
+              <span className="pname">{v}</span><span className="pstock">{subOn.length ? `${subOn.length} 種${left ? `，共剩 ${left}` : ''}${subOn.length < sub.length ? `・${sub.length - subOn.length} 未開賣` : ''}` : '未開賣'}</span>
             </button>
           )
         })}

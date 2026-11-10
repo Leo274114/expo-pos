@@ -703,6 +703,7 @@ function SettingsTab() {
       <T k="giftEnabled">贈與單</T>
       <T k="brewEnabled">沖泡耗用單</T>
       <T k="preorderEnabled">預購&amp;宅配</T>
+      <T k="showWaiting">收銀畫面顯示「未開賣」品項（灰色按鈕，點一下即可開賣）</T>
       <T k="voiceEnabled">語音點單（收銀畫面出現「語音點單」按鈕；點選按鈕永遠可用）</T>
 
       <h4>預購付款方式（至少一種）<Help>{HELP.prePay}</Help></h4>

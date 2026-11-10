@@ -1,9 +1,11 @@
-import { HashRouter, Link, NavLink, Route, Routes } from 'react-router-dom'
+import { HashRouter, Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { isConfigured } from './firebase-config.js'
-import { preIndex } from './lib/calc.js'
+import { preIndex, today } from './lib/calc.js'
+import { exportEventExcel } from './lib/excel.js'
+import Modal from './components/Modal.jsx'
 import { textOn } from './lib/template.js'
-import { UiProvider, ShopProvider, CartProvider, useShop, commit } from './store.jsx'
+import { UiProvider, ShopProvider, CartProvider, useShop, useUi, commit } from './store.jsx'
 import Login from './pages/Login.jsx'
 import Pos from './pages/Pos.jsx'
 import Orders from './pages/Orders.jsx'
@@ -94,6 +96,7 @@ function Shell() {
           <Route path="/help" element={<Faq />} />
         </Routes>
       </main>
+      <ExpiryReminder pending={pending} />
       <nav className="bottom">
         {links.map(([to, icon, label, badge]) => (
           <NavLink key={to} to={to} end={to === '/'}>
@@ -103,6 +106,43 @@ function Shell() {
         ))}
       </nav>
     </div>
+  )
+}
+
+// 展覽結束後開 App：提醒下載資料與未出貨的預購（每台裝置每天最多跳一次）
+function ExpiryReminder({ pending }) {
+  const s = useShop()
+  const ui = useUi()
+  const nav = useNavigate()
+  const e = s.event
+  const del = s.deleteAfterOf(e)
+  const d = today()
+  const ended = !!(e?.end && d > e.end)
+  const expired = !!(del && d >= del)
+  const dl = e?.downloadedAt || 0
+  const notDl = !dl
+  const key = `expiry-remind:${s.shopId}:${e?.id}`
+  const [open, setOpen] = useState(() => {
+    if (!ended || (!notDl && !pending && !expired)) return false
+    try { return localStorage.getItem(key) !== d } catch { return true }
+  })
+  if (!open) return null
+  const close = () => { try { localStorage.setItem(key, d) } catch { /* 忽略 */ } setOpen(false) }
+  const daysLeft = del ? Math.round((new Date(del) - new Date(d)) / 86400000) : null
+  return (
+    <Modal title={expired ? '資料保留期限已到' : '展覽已結束'} onClose={close}
+      footer={<>
+        <button onClick={close}>知道了</button>
+        {pending > 0 && <button onClick={() => { close(); nav('/shipping') }}>看預購單</button>}
+        <button className="primary" onClick={() => exportEventExcel(s).then(close).catch((x) => ui.toast('下載失敗：' + x.message, { kind: 'error' }))}>下載 Excel</button>
+      </>}>
+      <p className="big-text">「{e.name}」已於 {e.end} 結束</p>
+      <p className={expired ? 'warn' : ''}>
+        {expired ? `資料保留至 ${del}，已到期，隨時可能被刪除。` : `資料保留至 ${del}（還有 ${daysLeft} 天），到期後刪除、不另行通知。`}
+      </p>
+      {pending > 0 && <p className="warn">還有 {pending} 筆預購未出貨，收件資料到期後也會一起刪除，請先出貨或抄下。</p>}
+      <p className="muted">{notDl ? '這個場次還沒下載過 Excel，也還沒上傳 Google 雲端。' : `上次下載：${new Date(dl).toLocaleString('zh-TW', { hour12: false })}。`}也可以到「管理 → 資料下載」上傳 Google 雲端。</p>
+    </Modal>
   )
 }
 

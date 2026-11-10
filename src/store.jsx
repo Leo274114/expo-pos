@@ -250,6 +250,17 @@ export function CartProvider({ children }) {
         setActive((a) => Math.min(a, next.length - 1))
         return next
       })
+    },
+    // 復原被清除的客人卡片（放回原位置；清除最後一張時自動補的空卡片一併拿掉）
+    restore: (cart, idx) => {
+      setCarts((cs) => {
+        if (cs.some((c) => c.id === cart.id)) return cs
+        const rest = cs.length === 1 && !cs[0].lines.length ? [] : cs
+        const at = Math.min(idx, rest.length)
+        const next = [...rest.slice(0, at), cart, ...rest.slice(at)]
+        setActive(at)
+        return next
+      })
     }
   }), [carts, active])
 
