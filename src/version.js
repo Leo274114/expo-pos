@@ -1,7 +1,11 @@
 // 每次更新請同步修改版本號與更新內容（最新的放最上面）
-export const VERSION = '0.20.1'
+export const VERSION = '0.21.0'
 
 export const CHANGELOG = [
+  { v: '0.21.0', date: '2026-11-11', items: [
+    '選項清單的選項可以按住左右拖曳換順序',
+    '選項清單拿掉「停用」：拖到右邊垃圾桶就直接刪除（可復原），已建好的組合不受影響；刪掉的內建選項，載入內建範本時不會再補回來'
+  ] },
   { v: '0.20.1', date: '2026-11-10', items: [
     '從 LINE 點連結打開時，自動改用手機的瀏覽器（Safari／Chrome）開啟；Google 不允許在 LINE 等 App 內建瀏覽器裡登入，原本會停在一片白的畫面',
     'Facebook、Instagram、Messenger 等內建瀏覽器打開時，登入頁改成說明「請用 Safari 開啟」並提供「複製網址」',

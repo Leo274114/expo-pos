@@ -14,6 +14,7 @@ import Icon from '../components/Icon.jsx'
 import { VERSION, CHANGELOG } from '../version.js'
 import { aliasesToText, textToAliases } from '../lib/voice.js'
 import Help from '../components/Help.jsx'
+import ChipSorter from '../components/ChipSorter.jsx'
 import { SuppliesTab } from '../components/Supplies.jsx'
 import { HELP } from '../lib/help.js'
 import { withLog, DEFAULT_HOURS } from '../lib/analysis.js'
@@ -66,7 +67,8 @@ function ProductsTab() {
       if (!cur) { b.set(doc(db, s.shopPath, 'optionLists', l.key), { name: l.name, values: l.values, disabled: [], order: i }); added++ }
       else {
         // 範本新增的選項（例如生豆的 1公斤、厭氧）補進已經存在的清單，攤主自己加的保留
-        const miss = l.values.filter((v) => !cur.values.includes(v))
+        // 攤主刪掉的（removed）不再補回
+        const miss = l.values.filter((v) => !cur.values.includes(v) && !(cur.removed || []).includes(v))
         if (miss.length) { b.set(doc(db, s.shopPath, 'optionLists', l.key), { values: [...cur.values, ...miss] }, { merge: true }); added += miss.length }
       }
     })
@@ -100,7 +102,7 @@ function ProductsTab() {
       await b.commit()
     }
     const b = writeBatch(db)
-    TEMPLATE_LISTS.forEach((l, i) => b.set(doc(db, s.shopPath, 'optionLists', l.key), { name: l.name, values: l.values, disabled: [], order: i }))
+    TEMPLATE_LISTS.forEach((l, i) => b.set(doc(db, s.shopPath, 'optionLists', l.key), { name: l.name, values: l.values, disabled: [], removed: [], order: i }))
     TEMPLATE_PRODUCTS.forEach((p, i) => {
       const pid = s.newId(`${s.shopPath}/products`)
       b.set(doc(db, s.shopPath, 'products', pid), { ...p, active: true, order: 100 + i })
@@ -314,7 +316,7 @@ function ProductCard({ p, open, onToggle, move }) {
               {levels.map((l, i) => (
                 <div key={l.id} className="chips">
                   <span className="chip-label">{l.name}</span>
-                  {l.values.filter((v) => !(l.disabled || []).includes(v)).map((v) => (
+                  {l.values.map((v) => (
                     <button key={v} className={'chip' + ((pick[i] || []).includes(v) ? ' on' : '')} onClick={() => togglePick(i, v)}>{v}</button>
                   ))}
                 </div>
@@ -453,7 +455,7 @@ function ListsTab() {
   }
   return (
     <div>
-      <p className="muted">品種、處理法、重量等選項。停用的選項不會出現在新組合中，已有的組合不受影響。</p>
+      <p className="muted">品種、處理法、重量等選項。按住選項左右拖曳換順序；拖到右邊垃圾桶就刪除（已建好的組合不受影響，之後需要再新增即可；載入內建範本也不會再補回來）。</p>
       {s.optionLists.map((l) => <ListCard key={l.id} l={l} />)}
       <div className="row gap">
         <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="新的選項清單名稱，例：烘焙度" />
@@ -465,23 +467,33 @@ function ListsTab() {
 
 function ListCard({ l }) {
   const s = useShop()
+  const ui = useUi()
   const [v, setV] = useState('')
   const save = (patch) => commit(writeBatch(db).set(doc(db, s.shopPath, 'optionLists', l.id), patch, { merge: true }))
   const add = () => {
     const x = v.trim()
     if (!x || l.values.includes(x)) return
-    save({ values: [...l.values, x] }); setV('')
+    save({ values: [...l.values, x], removed: removed.filter((r) => r !== x) }); setV('')
   }
-  const dis = l.disabled || []
+  const removed = l.removed || []
+  const move = (from, to) => {
+    const next = [...l.values]
+    const [x] = next.splice(from, 1)
+    next.splice(to, 0, x)
+    save({ values: next })
+  }
+  const trash = (i) => {
+    const x = l.values[i]
+    save({ values: l.values.filter((_, k) => k !== i), disabled: [], removed: [...removed.filter((r) => r !== x), x] })
+    ui.toast(`已刪除「${x}」`, { ms: 6000, action: { label: '復原', onClick: () => {
+      const vals = l.values.includes(x) ? l.values : [...l.values.slice(0, i), x, ...l.values.slice(i)]
+      save({ values: vals, removed: removed.filter((r) => r !== x) })
+    } } })
+  }
   return (
     <div className="card">
       <b>{l.name}</b>
-      <div className="chips">
-        {l.values.map((x) => (
-          <button key={x} className={'chip' + (dis.includes(x) ? ' off' : ' on')} title="點一下停用／啟用"
-            onClick={() => save({ disabled: dis.includes(x) ? dis.filter((d) => d !== x) : [...dis, x] })}>{x}</button>
-        ))}
-      </div>
+      <ChipSorter items={l.values} onMove={move} onTrash={trash} />
       <div className="row gap">
         <input value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder={`新增${l.name}`} />
         <button onClick={add}>新增</button>

@@ -155,6 +155,18 @@ nav.bottom .dot { position: absolute; top: -5px; right: -14px; background: var(-
 .chip { border-radius: 999px; min-height: 38px; padding: 4px 16px; }
 .chip.on { background: var(--tea-soft); border-color: var(--tea); color: var(--tea-deep); font-weight: 700; }
 .chip.off { text-decoration: line-through; opacity: 0.45; }
+/* 選項清單：拖曳排序與垃圾桶 */
+.chip-sorter { display: flex; align-items: center; gap: 12px; }
+.chip-sorter + .row button { white-space: nowrap; }
+.chip-sorter .chips { flex: 1; }
+.chip.draggable { display: inline-flex; align-items: center; border: 1px solid var(--tea); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; position: relative; transition: box-shadow 0.12s; }
+.chip.dragging { cursor: grabbing; z-index: 5; box-shadow: 0 6px 16px rgba(24, 61, 46, 0.28); opacity: 0.92; }
+.chip.drop-before::before, .chip.drop-after::after { content: ''; position: absolute; top: 4px; bottom: 4px; width: 3px; border-radius: 2px; background: var(--amber, #F58220); }
+.chip.drop-before::before { left: -7px; }
+.chip.drop-after::after { right: -7px; }
+.chip-bin { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 74px; min-height: 46px; margin: 10px 0; border: 2px dashed var(--line); border-radius: var(--r-md); color: var(--muted); font-size: 11px; opacity: 0.55; transition: all 0.15s; }
+.chip-bin.show { opacity: 1; border-color: var(--cherry); color: var(--cherry); }
+.chip-bin.over { background: var(--cherry); color: #fff; transform: scale(1.08); }
 .chip-label { color: var(--muted); font-size: 14px; min-width: 60px; }
 
 /* ---------- 收銀 ---------- */
