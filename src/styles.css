@@ -136,6 +136,8 @@ nav.bottom .dot { position: absolute; top: -5px; right: -14px; background: var(-
 .splash.login h1 { color: #fff; margin: 4px 0 0; font-size: 34px; letter-spacing: 0.12em; }
 .splash.login .logo { color: #9fd0b4; }
 .splash.login .muted { color: #a9c3b5; }
+.splash.login .inapp-warn { background: #fff3e0; color: #8a4b00; padding: 10px 14px; border-radius: 10px; font-weight: 700; max-width: 320px; text-align: center; }
+.splash.login p { max-width: 320px; text-align: center; }
 .splash.login button { flex: none; width: 280px; margin-top: 18px; background: #fff; color: var(--tea-deep); border-color: #fff; }
 
 .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
