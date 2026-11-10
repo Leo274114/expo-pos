@@ -4,7 +4,8 @@ export const VERSION = '0.20.1'
 export const CHANGELOG = [
   { v: '0.20.1', date: '2026-11-10', items: [
     '從 LINE 點連結打開時，自動改用手機的瀏覽器（Safari／Chrome）開啟；Google 不允許在 LINE 等 App 內建瀏覽器裡登入，原本會停在一片白的畫面',
-    'Facebook、Instagram、Messenger 等內建瀏覽器打開時，登入頁改成說明「請用 Safari 開啟」並提供「複製網址」'
+    'Facebook、Instagram、Messenger 等內建瀏覽器打開時，登入頁改成說明「請用 Safari 開啟」並提供「複製網址」',
+    'Q&A 新增「怎麼加到手機桌面」（iPhone／iPad、安卓）'
   ] },
   { v: '0.20.0', date: '2026-11-10', items: [
     '收銀畫面顯示「未開賣」品項：停用但已填價格與庫存的組合以灰色虛線顯示，點一下確認就開賣（可選「開賣並加入購物車」），不用回管理頁；開賣時間照樣記錄給分析頁用（可在功能設定關閉）',

@@ -58,7 +58,7 @@ async function icon(Comp, color = '#F58220') {
     info: fa.FaInfoCircle, play: fa.FaPlayCircle, cog: fa.FaCogs, box: fa.FaBoxes, sliders: fa.FaSlidersH,
     cash: fa.FaCashRegister, check: fa.FaReceipt, mic: fa.FaMicrophone, cards: fa.FaClone, truck: fa.FaTruck,
     coins: fa.FaCoins, chart: fa.FaChartBar, lock: fa.FaShieldAlt, list: fa.FaClipboardCheck, warn: fa.FaExclamationTriangle,
-    trend: fa.FaChartLine, cloud: fa.FaCloudUploadAlt, toggle: fa.FaToggleOn, cup: fa.FaMugHot,
+    trend: fa.FaChartLine, phone: fa.FaMobileAlt, cloud: fa.FaCloudUploadAlt, toggle: fa.FaToggleOn, cup: fa.FaMugHot,
   })) icons[k] = await icon(comp, '#FFFFFF');
   const coverIcon = await icon(fa.FaStore, '#F58220');
 
@@ -104,7 +104,7 @@ async function icon(Comp, color = '#F58220') {
   s.addText('好攤 系統功能說明', { placeholder: 'title' });
   s.addText([
     T('展場攤商的收銀與庫存 App', { breakLine: true, bold: true }),
-    T('版本 v0.20.0｜首次上場 2026 南港咖啡展 11/13–11/16', { breakLine: true }),
+    T('版本 v0.20.1｜首次上場 2026 南港咖啡展 11/13–11/16', { breakLine: true }),
     T('https://leo274114.github.io/expo-pos/'),
   ], { placeholder: 'body' });
 
@@ -129,7 +129,7 @@ async function icon(Comp, color = '#F58220') {
   steps(s, [
     '用 Safari 開啟網址，按「使用 Google 帳號登入」；一個帳號就是一個攤位',
     '第一次登入：攤位名稱必填，看完使用須知，勾選同意後開始',
-    '安裝到主畫面：分享按鈕 →「加入主畫面」',
+    '加到手機桌面（主畫面）：iPhone／iPad、安卓步驟見下一頁',
     '照「開店清單」走：建立場次 → 載入範本 → 填價格與庫存 → 填耗材（可略過）',
     '開店清單最後一步：開店點零錢，每一步都能直接點過去',
   ], 0.7, 1.4, 5.25, 0.71, 13);
@@ -137,6 +137,28 @@ async function icon(Comp, color = '#F58220') {
   s.addText('同意聲明', { x: 6.55, y: 1.45, w: 2.75, h: 0.4, fontSize: 16, bold: true, color: C.accent2, margin: 0, isTextBox: true });
   s.addText('本 App 由浩子維護。浩子可查看各攤位的銷售統計，用於改良本 App；不會查看您的庫存數據，也不會將任何數據提供給他人。展覽結束 14 天後資料將刪除，屆時不另行通知，請於期限內下載 Excel 檔保存。',
     { x: 6.55, y: 1.9, w: 2.75, h: 3.0, fontSize: 12, color: C.text1, margin: 0, valign: 'top', isTextBox: true });
+
+  // 加到手機桌面
+  s = content('加到手機桌面：像 App 一樣打開', 'phone', '簡介與開始');
+  card(s, 0.5, 1.3, 4.4, 3.0, 'iOS 卡');
+  head(s, 'iPhone／iPad（用 Safari）', 0.7, 1.42, 4.0);
+  steps(s, [
+    '用 Safari 打開網址並登入',
+    '點下方（iPad 在上方）的分享按鈕 □↑',
+    '往下滑，點「加入主畫面」',
+    '右上角按「加入」，桌面出現「好攤」',
+  ], 0.7, 1.85, 4.0, 0.6, 12.5);
+  card(s, 5.1, 1.3, 4.4, 3.0, '安卓卡');
+  head(s, '安卓手機（用 Chrome）', 5.3, 1.42, 4.0);
+  steps(s, [
+    '用 Chrome 打開網址並登入',
+    '點右上角「⋮」',
+    '選「加到主畫面」或「安裝應用程式」',
+    '按「安裝」或「新增」，桌面出現「好攤」',
+  ], 5.3, 1.85, 4.0, 0.6, 12.5);
+  card(s, 0.5, 4.45, 9.0, 0.6, '注意卡');
+  s.addText([T('注意：', { bold: true, color: HEX.deep }), T('不要在 LINE、Facebook 裡面的瀏覽器登入，Google 會擋（畫面一片白）。從 LINE 點連結會自動改用手機瀏覽器開啟；三星瀏覽器：≡ →「新增頁面至」→「主螢幕」。')],
+    { x: 0.7, y: 4.45, w: 8.6, h: 0.6, fontSize: 11.5, color: C.text1, margin: 0, valign: 'middle', isTextBox: true });
 
   // 4 管理頁
   pres.addSection({ title: '管理頁' });
