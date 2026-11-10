@@ -26,7 +26,7 @@ async function icon(Comp, color) {
   const pres = new pptxgen();
   pres.layout = 'LAYOUT_16x9';
   pres.theme = { headFontFace: FONT, bodyFontFace: FONT };
-  pres.title = '出攤記帳 系統優點';
+  pres.title = '好攤 系統優點';
   const C = pres.SchemeColor;
 
   pres.defineSlideMaster({
@@ -40,13 +40,13 @@ async function icon(Comp, color) {
     title: 'FEATURE', background: { color: BG },
     objects: [
       { placeholder: { options: { name: 'title', type: 'title', x: 1.25, y: 0.35, w: 8.25, h: 0.7, fontSize: 28, bold: true, color: C.accent2, align: 'left', valign: 'middle', margin: 0 }, text: '' } },
-      { text: { text: '出攤記帳 系統優點', options: { x: 0.5, y: 5.25, w: 5, h: 0.25, fontSize: 10, color: C.text1, margin: 0 } } },
+      { text: { text: '好攤 系統優點', options: { x: 0.5, y: 5.25, w: 5, h: 0.25, fontSize: 10, color: C.text1, margin: 0 } } },
     ],
     slideNumber: { x: 9.0, y: 5.25, w: 0.5, h: 0.25, fontSize: 10, color: '3B2412', align: 'right' },
   });
 
   const I = {};
-  for (const [k, c] of Object.entries({ device: fa.FaMobileAlt, tap: fa.FaHandPointer, users: fa.FaUsers, sync: fa.FaSyncAlt, chart: fa.FaChartBar, cards: fa.FaClone, coins: fa.FaCoins, grid: fa.FaTh, sliders: fa.FaSlidersH, lock: fa.FaShieldAlt, store: fa.FaStore }))
+  for (const [k, c] of Object.entries({ next: fa.FaRedoAlt, device: fa.FaMobileAlt, tap: fa.FaHandPointer, users: fa.FaUsers, sync: fa.FaSyncAlt, chart: fa.FaChartBar, cards: fa.FaClone, coins: fa.FaCoins, grid: fa.FaTh, sliders: fa.FaSlidersH, lock: fa.FaShieldAlt, store: fa.FaStore }))
     I[k] = await icon(c, '#FFFFFF');
   I.cash = await icon(fa.FaCashRegister, '#FFFFFF');
 
@@ -82,11 +82,11 @@ async function icon(Comp, color) {
   let s = pres.addSlide({ masterName: 'COVER', sectionTitle: '封面' });
   s.addShape(pres.shapes.OVAL, { x: 0.6, y: 0.55, w: 0.75, h: 0.75, fill: { color: C.accent1 }, line: { color: C.accent1 }, objectName: '封面圖示底' });
   s.addImage({ data: I.store, x: 0.77, y: 0.72, w: 0.41, h: 0.41, objectName: '封面圖示' });
-  s.addText('用實際畫面看出攤記帳', { placeholder: 'title' });
+  s.addText('用實際畫面看好攤', { placeholder: 'title' });
   s.addText([
     { text: '為展場攤商做的收銀與庫存 App', options: { bold: true, breakLine: true } },
     { text: 'iPad、iPhone 開網址就能用，資料即時同步，不用付費', options: { breakLine: true } },
-    { text: '以下畫面皆為 v0.15.0 實際截圖（琥珀社咖啡莊園）' },
+    { text: '以下畫面皆為實際截圖（琥珀社咖啡莊園）' },
   ], { placeholder: 'body' });
   shot(s, 'phone_pos', 6.55, 0.45, 4.6, PHONE);
   shot(s, 'phone_pick1', 8.15, 0.85, 4.1, PHONE);
@@ -190,8 +190,8 @@ async function icon(Comp, color) {
   s = feature('9. 每個攤位依自己的做法開關功能', 'sliders');
   shot(s, 'ipad_settings', 0.6, 1.3, 3.75, IPAD);
   explain(s, 4.2, 5.3, '用不到的功能關掉，畫面更單純', [
-    ['零錢、贈與、沖泡、預定可各自開關', '結帳畫面只出現有開的選項'],
-    ['預定付款方式自選', '現場付全額、先付訂金、貨到付款'],
+    ['零錢、贈與、沖泡、預購可各自開關', '結帳畫面只出現有開的選項'],
+    ['預購付款方式自選', '現場付全額、先付訂金、貨到付款'],
     ['滿額活動、滿額免運', '達門檻自動提醒、運費自動帶 0'],
   ]);
 
@@ -201,7 +201,7 @@ async function icon(Comp, color) {
     ['一個 Google 帳號一個攤位', '只能讀寫自己的資料，朋友的攤位互不影響'],
     ['斷網照常結帳', '上方顯示離線中，恢復連線自動同步'],
     ['管理者只看銷售統計', '讀不到庫存與宅配收件資料，也不提供給他人'],
-    ['一鍵下載 Excel', '銷售明細、品項統計、零錢對帳、待出貨等 8 個工作表'],
+    ['下載 Excel、備份到 Google 雲端', '13 個工作表；也能存成自己雲端硬碟裡的試算表'],
   ];
   pv.forEach(([h, d], i) => {
     const col = i % 2, row = Math.floor(i / 2);
@@ -210,6 +210,25 @@ async function icon(Comp, color) {
     s.addText(h, { x: x + 0.25, y: y + 0.2, w: ww - 0.5, h: 0.45, fontSize: 17, bold: true, color: C.accent2, margin: 0, isTextBox: true });
     s.addText(d, { x: x + 0.25, y: y + 0.7, w: ww - 0.5, h: 0.8, fontSize: 14, color: C.text1, margin: 0, valign: 'top', isTextBox: true });
   });
+
+
+  // 12 展後資料
+  s = feature('加碼：展後資料，下次參展更好準備', 'next');
+  const rows = [
+    ['看哪個數字', '在哪裡', '下次怎麼用'],
+    ['沖泡耗用量', '總結、Excel', '試飲要準備多少豆子，算進備貨量'],
+    ['耗材準備與剩餘', '管理 → 耗材', '試飲杯、濾紙、手提袋帶多少剛好'],
+    ['完售紀錄', '總結、Excel', '開賣多久就賣完的品項，下次多帶'],
+    ['品項銷售曲線', '分析', '比較品種＋處理法的人氣，決定主打與數量'],
+    ['整個展期各品項銷量', '總結、Excel', '照實際銷量配貨，少帶賣不動的'],
+    ['缺貨改預購的紀錄', '預購單', '客人想買卻沒貨的品項，下次補足'],
+    ['每小時營業額', '總結、Google 雲端', '尖峰時段多排人手、先補零錢'],
+  ];
+  s.addTable(rows.map((r, i) => r.map((c) => ({ text: c, options: i === 0
+    ? { bold: true, color: 'FFFFFF', fill: { color: 'C85F0A' }, fontSize: 13, fontFace: FONT }
+    : { color: '3B2412', fill: { color: i % 2 ? 'FFFFFF' : 'FDEBDB' }, fontSize: 12.5, fontFace: FONT } }))),
+    { x: 0.5, y: 1.3, w: 9.0, colW: [2.3, 2.0, 4.7], border: { type: 'solid', pt: 0.5, color: 'F3C9A3' }, margin: [0.05, 0.1, 0.05, 0.1], valign: 'middle', objectName: '展後資料表' });
+  s.addText('每場展覽的 Excel 或雲端試算表都留著，跨展一比就知道哪裡可以更好。', { x: 0.5, y: 4.6, w: 9.0, h: 0.45, fontSize: 13, bold: true, color: C.accent2, margin: 0, valign: 'middle', isTextBox: true });
 
   await pres.writeFile({ fileName: OUT });
   await applyTheme(OUT, THEME);
