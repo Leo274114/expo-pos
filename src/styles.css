@@ -656,3 +656,11 @@ input.need { border-color: var(--cherry) !important; }
 .hours-grid { display: grid; grid-template-columns: repeat(4, max-content); justify-content: start; gap: 6px 10px; align-items: center; margin: 6px 0 4px; }
 .hours-grid input[type=time] { min-height: 36px; padding: 2px 6px; }
 .hours-grid .muted { font-size: 13px; }
+
+/* 展覽清單、清除測試資料 */
+.expo-list { display: flex; flex-direction: column; gap: 8px; }
+.expo-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--paper); flex-wrap: wrap; }
+.test-clear { margin: 10px 0; padding: 10px 12px; border: 1px dashed var(--line); border-radius: var(--r-md); }
+.test-clear p { margin: 4px 0 8px; }
+.expo-group { margin: 8px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); }
+.expo-group .chips { margin: 6px 0 0; }

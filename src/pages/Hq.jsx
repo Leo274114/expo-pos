@@ -121,6 +121,8 @@ export default function Hq() {
         <p className="muted small"><i className="lamp green" />今天有單　<i className="lamp yellow" />7 天內有單　<i className="lamp" />超過 7 天或還沒開賣</p>
       </div>
 
+      <ExpoGroups shops={all} />
+
       <PurgeExpired shops={all} onDone={load} />
 
       {pick && <ShopDetail shop={all.find((x) => x.id === pick.shopId)} eventId={pick.eventId}
@@ -333,6 +335,39 @@ function ShopDetail({ shop, eventId, onEvent, onClose }) {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+// 同一個展覽（從展覽清單建立或分享的場次）的所有攤位放在一起看
+function ExpoGroups({ shops }) {
+  const groups = {}
+  shops.forEach((sh) => sh.events.forEach((e) => {
+    if (!e.expoId) return
+    const g = groups[e.expoId] || (groups[e.expoId] = { name: e.name, start: e.start, end: e.end, rows: [] })
+    const n = summarize(sh.byEvent[e.id] || []).orderCount
+    g.rows.push({ id: sh.id, name: sh.name || '（未命名）', n })
+  }))
+  const list = Object.entries(groups).sort((a, b) => (b[1].start || '').localeCompare(a[1].start || ''))
+  if (!list.length) return null
+  return (
+    <div className="card">
+      <h4>各展覽的攤位</h4>
+      {list.map(([id, g]) => {
+        const rows = g.rows.sort((a, b) => b.n - a.n)
+        return (
+          <div key={id} className="expo-group">
+            <div className="row between wrap">
+              <b>{g.name}<span className="muted small">　{g.start}～{g.end}</span></b>
+              <span className="small">{rows.length} 攤在用・有營業 {rows.filter((r) => r.n > 0).length} 攤・客人共 {rows.reduce((a, r) => a + r.n, 0)} 位</span>
+            </div>
+            <div className="chips">
+              {rows.map((r) => <span key={r.id} className="chip">{r.name}　{r.n} 位</span>)}
+            </div>
+          </div>
+        )
+      })}
+      <p className="muted small">客人數＝該場次的銷售單筆數（不含作廢、退換貨）。</p>
     </div>
   )
 }

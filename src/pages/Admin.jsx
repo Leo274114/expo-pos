@@ -506,15 +506,101 @@ function ListCard({ l }) {
 function EventsTab() {
   const s = useShop()
   const { toast } = useUi()
-  const [f, setF] = useState({ name: '2026 南港咖啡展', start: '2026-11-13', end: '2026-11-16', hours: { ...DEFAULT_HOURS, days: {} } })
-  const create = () => {
-    if (!f.name || !f.start || !f.end || f.end < f.start) return toast('請填寫名稱與正確日期', { kind: 'error' })
+  const [f, setF] = useState({ name: '', start: '', end: '', hours: { ...DEFAULT_HOURS, days: {} } })
+  const [share, setShare] = useState(true)
+  const [dup, setDup] = useState(null) // 清單上已有同名同開始日的展覽
+  const [clearAsk, setClearAsk] = useState(null)
+  // 展覽清單（所有攤商共用：只有名稱、日期、營業時間）
+  const [expos, setExpos] = useState(null)
+  const loadExpos = () => getDocs(collection(db, 'expos'))
+    .then((snap) => setExpos(snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.start || '').localeCompare(b.start || ''))))
+    .catch(() => setExpos([]))
+  useEffect(() => { loadExpos() }, [])
+  const usedExpo = new Set(s.events.map((e) => e.expoId).filter(Boolean))
+  const openExpos = (expos || []).filter((x) => x.end >= today() && !usedExpo.has(x.id))
+  const canEditExpo = (x) => x && (x.createdBy === s.user?.uid || s.isAdmin)
+
+  const addEvent = (data) => {
     const id = s.newId(`${s.shopPath}/events`)
     const b = writeBatch(db)
-    b.set(doc(db, s.shopPath, 'events', id), { ...f, createdAt: Date.now() })
+    b.set(doc(db, s.shopPath, 'events', id), { ...data, createdAt: Date.now() })
     b.set(doc(db, s.shopPath), { currentEventId: id }, { merge: true })
+    return b
+  }
+  const useExpo = (x) => {
+    commit(addEvent({ name: x.name, start: x.start, end: x.end, hours: x.hours || { ...DEFAULT_HOURS, days: {} }, expoId: x.id }))
+    setDup(null)
+    toast(`已用展覽清單建立「${x.name}」並設為目前場次`)
+  }
+  const create = (force) => {
+    const name = f.name.trim()
+    if (!name || !f.start || !f.end || f.end < f.start) return toast('請填寫名稱與正確日期', { kind: 'error' })
+    const same = (expos || []).find((x) => x.name.trim() === name && x.start === f.start)
+    if (same && !force) return setDup(same)
+    const shareIt = share && !same
+    const eid = shareIt ? s.newId('expos') : null
+    // 自己的場次也記住來源（expoId），總覽才能把同一個展覽的攤位放在一起
+    const b = addEvent({ ...f, name, ...(eid ? { expoId: eid } : {}) })
+    if (eid) b.set(doc(db, 'expos', eid), { name, start: f.start, end: f.end, hours: f.hours, createdBy: s.user.uid, createdAt: Date.now() })
     commit(b)
-    toast('已建立並設為目前場次')
+    if (eid) setTimeout(loadExpos, 800)
+    setDup(null)
+    setF({ name: '', start: '', end: '', hours: { ...DEFAULT_HOURS, days: {} } })
+    toast(shareIt ? '已建立並分享到展覽清單' : '已建立並設為目前場次')
+  }
+  const shareEvent = (e) => {
+    const eid = s.newId('expos')
+    const b = writeBatch(db)
+    b.set(doc(db, 'expos', eid), { name: e.name, start: e.start, end: e.end, hours: e.hours || { ...DEFAULT_HOURS, days: {} }, createdBy: s.user.uid, createdAt: Date.now() })
+    b.set(doc(db, s.shopPath, 'events', e.id), { expoId: eid }, { merge: true })
+    commit(b)
+    toast('已分享到展覽清單')
+    setTimeout(loadExpos, 800)
+  }
+  const pushExpo = (e) => {
+    const x = (expos || []).find((y) => y.id === e.expoId)
+    if (!canEditExpo(x)) return
+    commit(writeBatch(db).set(doc(db, 'expos', x.id), { name: e.name, start: e.start, end: e.end, hours: e.hours || x.hours }, { merge: true }))
+    toast('展覽清單已更新（已使用的攤商不會自動改，請各自調整）')
+    setTimeout(loadExpos, 800)
+  }
+  const removeExpo = (x) => {
+    commit(writeBatch(db).delete(doc(db, 'expos', x.id)))
+    toast(`已從展覽清單移除「${x.name}」（各攤已建立的場次不受影響）`)
+    setTimeout(loadExpos, 800)
+  }
+
+  // 清除測試資料：只刪目前場次「開始日期之前」的單據、收件資料、庫存調整、零錢紀錄
+  const testData = (e) => {
+    if (e.id !== s.eventId || !e.start) return null
+    const before = (ts) => ts && dayOf(ts) < e.start
+    const orders = s.orders.filter((o) => before(o.ts))
+    const ids = new Set(orders.map((o) => o.id))
+    return {
+      orders,
+      shipping: Object.keys(s.shipping || {}).filter((id) => ids.has(id) || before(s.shipping[id]?.ts)),
+      adjustments: s.adjustments.filter((a) => before(a.ts)),
+      cashCounts: Object.entries(s.cashCounts || {}).filter(([, c]) => (c.day ? c.day < e.start : before(c.ts))).map(([id]) => id),
+      cashMoves: s.cashMoves.filter((m) => (m.day ? m.day < e.start : before(m.ts)))
+    }
+  }
+  const clearTest = async (e) => {
+    const t = testData(e)
+    if (!t) return
+    const refs = [
+      ...t.orders.map((o) => doc(db, s.eventPath, 'orders', o.id)),
+      ...t.shipping.map((id) => doc(db, s.eventPath, 'shipping', id)),
+      ...t.adjustments.map((a) => doc(db, s.eventPath, 'adjustments', a.id)),
+      ...t.cashCounts.map((id) => doc(db, s.eventPath, 'cashCounts', id)),
+      ...t.cashMoves.map((m) => doc(db, s.eventPath, 'cashMoves', m.id))
+    ]
+    for (let i = 0; i < refs.length; i += 400) {
+      const b = writeBatch(db)
+      refs.slice(i, i + 400).forEach((r) => b.delete(r))
+      await commit(b)
+    }
+    setClearAsk(null)
+    toast(`已清除 ${refs.length} 筆測試資料，庫存回到初始數量`)
   }
   const setCurrent = (id) => commit(writeBatch(db).set(doc(db, s.shopPath), { currentEventId: id }, { merge: true }))
   const saveEv = (e, patch) => commit(writeBatch(db).set(doc(db, s.shopPath, 'events', e.id), patch, { merge: true }))
@@ -558,10 +644,62 @@ function EventsTab() {
             <p className={expired ? 'warn' : 'muted'}>
               資料保留至 {del}（展覽結束後 14 天）{expired && '：已到期，請下載 Excel 後刪除'}
             </p>
+            {(() => {
+              const x = e.expoId && (expos || []).find((y) => y.id === e.expoId)
+              if (!e.expoId && expos && e.end >= today()) {
+                const same = expos.find((y) => y.name.trim() === (e.name || '').trim() && y.start === e.start)
+                return (
+                  <p className="row gap wrap small">
+                    <span className="muted">{same ? '展覽清單上已有同名同日期的展覽。' : '其他攤商也要參加這個展覽？'}</span>
+                    {same
+                      ? <button className="small-btn" onClick={() => saveEv(e, { expoId: same.id })}>連結到清單上的展覽</button>
+                      : <button className="small-btn" onClick={() => shareEvent(e)}>分享到展覽清單</button>}
+                  </p>
+                )
+              }
+              return x && canEditExpo(x) && (
+                <p className="row gap wrap small">
+                  <span className="muted">這個場次已分享到展覽清單。</span>
+                  <button className="small-btn" onClick={() => pushExpo(e)}>把目前名稱、日期、營業時間更新到清單</button>
+                </p>
+              )
+            })()}
+            {(() => {
+              const t = testData(e)
+              const n = t ? t.orders.length + t.shipping.length + t.adjustments.length + t.cashCounts.length + t.cashMoves.length : 0
+              return t && (
+                <div className="test-clear">
+                  <b>清除測試資料</b><Help>{HELP.clearTest}</Help>
+                  <p className="muted small">{n ? `開始日期（${e.start}）之前有 ${t.orders.length} 筆單據、${t.adjustments.length} 筆庫存調整、${t.cashCounts.length + t.cashMoves.length} 筆零錢紀錄。` : `開始日期（${e.start}）之前沒有資料。`}</p>
+                  <button disabled={!n} onClick={() => setClearAsk(e)}>清除開始日之前的測試資料</button>
+                </div>
+              )
+            })()}
             <button className="danger" onClick={() => wipe(e)}>刪除此場次資料</button>
           </div>
         )
       })}
+      <div className="card">
+        <h4>從展覽清單建立<Help>{HELP.expos}</Help></h4>
+        {expos === null ? <p className="muted">讀取中…</p> : !openExpos.length ? (
+          <p className="muted">清單上目前沒有可用的展覽。自己建立新場次時勾選「分享到展覽清單」，其他攤商就能直接使用。</p>
+        ) : (
+          <div className="expo-list">
+            {openExpos.map((x) => (
+              <div key={x.id} className="expo-row">
+                <div>
+                  <b>{x.name}</b>
+                  <div className="muted small">{x.start}～{x.end}　{x.hours?.open || DEFAULT_HOURS.open}–{x.hours?.close || DEFAULT_HOURS.close}{Object.values(x.hours?.days || {}).some(Boolean) ? '（部分日期不同）' : ''}</div>
+                </div>
+                <div className="row gap">
+                  {canEditExpo(x) && <button className="small-btn" onClick={() => removeExpo(x)}>從清單移除</button>}
+                  <button className="primary" onClick={() => useExpo(x)}>使用</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="card">
         <h4>建立新場次<Help>{HELP.events}</Help></h4>
         <label>名稱<input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
@@ -570,9 +708,31 @@ function EventsTab() {
           <label>結束<input type="date" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} /></label>
         </div>
         <HoursEditor value={f.hours} start={f.start} end={f.end} onChange={(hours) => setF({ ...f, hours })} />
-        <button className="primary" onClick={create}>建立</button>
+        <label className="check"><input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} /> 分享到展覽清單，讓其他攤商直接使用（只分享名稱、日期、營業時間）</label>
+        <button className="primary" onClick={() => create(false)}>建立</button>
       </div>
+      {dup && (
+        <Modal title="清單上已經有了" onClose={() => setDup(null)}
+          footer={<><button onClick={() => create(true)}>仍然自己建立</button><button className="primary" onClick={() => useExpo(dup)}>直接使用</button></>}>
+          <p className="big-text">展覽清單上已經有「{dup.name}」（{dup.start}～{dup.end}），要直接使用嗎？</p>
+          <p className="muted">直接使用會複製名稱、日期與營業時間到你的攤位，之後可以自己改。</p>
+        </Modal>
+      )}
+      {clearAsk && <ClearTestModal e={clearAsk} onClose={() => setClearAsk(null)} onOk={() => clearTest(clearAsk)} />}
     </div>
+  )
+}
+
+function ClearTestModal({ e, onClose, onOk }) {
+  const [w, setW] = useState('')
+  const [busy, setBusy] = useState(false)
+  return (
+    <Modal title="清除測試資料" onClose={onClose}
+      footer={<><button onClick={onClose}>取消</button><button className="danger" disabled={w !== '刪除' || busy} onClick={() => { setBusy(true); onOk() }}>{busy ? '清除中…' : '清除'}</button></>}>
+      <p>將永久刪除「{e.name}」開始日期（{e.start}）<b>之前</b>的銷售單、預購收件資料、庫存調整與零錢紀錄。</p>
+      <p className="muted">初始庫存、商品、價格、營業時間、耗材準備數量都保留；開始日當天以後的資料不會刪。刪完庫存回到初始數量，報表也不再計算測試單。</p>
+      <label>確定請輸入「刪除」<input value={w} onChange={(x) => setW(x.target.value)} placeholder="刪除" /></label>
+    </Modal>
   )
 }
 

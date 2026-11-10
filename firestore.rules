@@ -36,6 +36,15 @@ service cloud.firestore {
         allow read: if isAdmin();
       }
     }
+    // 展覽清單（所有攤商共用）：只有名稱、日期、營業時間；登入者都能讀
+    // 建立時 createdBy 必須是自己；只有建立的人和系統管理者能修改或刪除，且不能改 createdBy
+    match /expos/{expoId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.createdBy == request.auth.uid;
+      allow update: if request.auth != null && (resource.data.createdBy == request.auth.uid || isAdmin())
+        && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if request.auth != null && (resource.data.createdBy == request.auth.uid || isAdmin());
+    }
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
     }
