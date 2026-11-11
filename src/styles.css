@@ -676,3 +676,6 @@ input.need { border-color: var(--cherry) !important; }
 .expo-group .chips { margin: 6px 0 0; }
 
 .admin-tools button { white-space: nowrap; }
+/* 剛產生的組合亮一下 */
+.sku-table tr.fresh td { animation: freshRow 2.4s ease-out; }
+@keyframes freshRow { 0%, 40% { background: #fff1c2; } 100% { background: transparent; } }

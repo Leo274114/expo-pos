@@ -255,6 +255,9 @@ function ProductForm({ product, onClose, initialCategory = '' }) {
 
 function ProductCard({ p, open, onToggle, move }) {
   const s = useShop()
+  const { toast } = useUi()
+  const tableRef = useRef(null)
+  const [fresh, setFresh] = useState([]) // 剛產生的組合，亮一下
   const [edit, setEdit] = useState(false)
   const skus = s.skus.filter((k) => k.productId === p.id)
   const levels = (p.levels || []).map((id) => s.optionLists.find((l) => l.id === id)).filter(Boolean)
@@ -279,13 +282,23 @@ function ProductCard({ p, open, onToggle, move }) {
     const exists = new Set(skus.map((k) => (k.opts || []).join('|')))
     const b = writeBatch(db)
     let n = 0
+    const ids = []
     combos().forEach((c, i) => {
       if (exists.has(c.join('|'))) return
-      b.set(doc(db, s.shopPath, 'skus', s.newId(`${s.shopPath}/skus`)), { productId: p.id, opts: c, price: 0, promoPrice: null, active: true, order: Date.now() + i })
+      const id = s.newId(`${s.shopPath}/skus`)
+      ids.push(id)
+      b.set(doc(db, s.shopPath, 'skus', id), { productId: p.id, opts: c, price: 0, promoPrice: null, active: true, order: Date.now() + i })
       n++
     })
-    if (n) commit(b)
+    const skipped = combos().length - n
     setPick(levels.map(() => []))
+    if (!n) return toast('勾選的組合都已經有了，請在下方表格填價格與庫存')
+    commit(b)
+    setFresh(ids)
+    toast(`已產生 ${n} 個組合${skipped ? `（${skipped} 個已存在略過）` : ''}，請在下方表格填定價與初始庫存`)
+    // 手機上表格在畫面下方，自動捲過去，不然會以為沒反應
+    setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)
+    setTimeout(() => setFresh([]), 4000)
   }
   const removeProduct = () => {
     if (!confirm(`刪除「${p.name}」與所有組合？已完成的銷售單不受影響。`)) return
@@ -325,7 +338,7 @@ function ProductCard({ p, open, onToggle, move }) {
             </div>
           )}
           {(p.levels || []).includes('pack') && <p className="hint">散包和盒裝共用庫存：在「一盒」那一列按「組成」，選同處理法的「單包」× 每盒包數。之後只要填單包的庫存。</p>}
-          <SkuTable product={p} skus={skus} />
+          <div ref={tableRef} style={{ scrollMarginTop: 70 }}><SkuTable product={p} skus={skus} fresh={fresh} /></div>
         </div>
       )}
       {edit && <ProductForm product={p} onClose={() => setEdit(false)} />}
@@ -333,7 +346,7 @@ function ProductCard({ p, open, onToggle, move }) {
   )
 }
 
-function SkuTable({ product, skus }) {
+function SkuTable({ product, skus, fresh = [] }) {
   const s = useShop()
   const [compFor, setCompFor] = useState(null)
   const setSku = (id, patch) => commit(writeBatch(db).set(doc(db, s.shopPath, 'skus', id), patch, { merge: true }))
@@ -353,7 +366,7 @@ function SkuTable({ product, skus }) {
             const comps = k.components || []
             const canMake = comps.length ? componentAvail(comps, (id) => (tracked(id) ? s.stock[id] ?? 0 : Infinity)) : null
             return (
-              <tr key={k.id} data-sort className={k.active === false ? 'off' : ''}>
+              <tr key={k.id} data-sort className={(k.active === false ? 'off' : '') + (fresh.includes(k.id) ? ' fresh' : '')}>
                 <td className="sku-sticky">
                   <div className="sku-name">{grip}<span className="sku-opts">{(k.opts || []).length ? k.opts.map((o, j) => <span key={j}>{o}</span>) : <span>{product.name}</span>}</span></div>
                 </td>
