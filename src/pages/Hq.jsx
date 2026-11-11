@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { collection, doc, getDocs, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useShop, useUi } from '../store.jsx'
@@ -110,7 +110,8 @@ export default function Hq() {
                     <td className="num big-cell">{fmt(x.total)}</td>
                     <td className="num">{x.customers[scope]}</td>
                     <td className="muted small">{x.ownerEmail || '—'}<div>加入 {fmtDate(x.consentAt || x.createdAt)}</div></td>
-                    <td><button className="small-btn" disabled={!x.cur} onClick={() => setPick({ shopId: x.id, eventId: x.cur?.id })}>看明細</button></td>
+                    <td><button className="small-btn" disabled={!x.events.length} title={x.events.length ? '' : '這個攤位還沒建立場次'}
+                      onClick={() => setPick({ shopId: x.id, eventId: x.cur?.id || [...x.events].sort((a, b) => (b.start || '').localeCompare(a.start || ''))[0].id })}>看明細</button></td>
                   </tr>
                 )
               })}
@@ -121,12 +122,13 @@ export default function Hq() {
         <p className="muted small"><i className="lamp green" />今天有單　<i className="lamp yellow" />7 天內有單　<i className="lamp" />超過 7 天或還沒開賣</p>
       </div>
 
+      {pick && <ShopDetail shop={all.find((x) => x.id === pick.shopId)} eventId={pick.eventId}
+        onEvent={(eventId) => setPick({ ...pick, eventId })} onClose={() => setPick(null)} />}
+
       <ExpoGroups shops={all} />
 
       <PurgeExpired shops={all} onDone={load} />
 
-      {pick && <ShopDetail shop={all.find((x) => x.id === pick.shopId)} eventId={pick.eventId}
-        onEvent={(eventId) => setPick({ ...pick, eventId })} onClose={() => setPick(null)} />}
     </div>
   )
 }
@@ -251,6 +253,9 @@ function PurgeExpired({ shops, onDone }) {
 }
 
 function ShopDetail({ shop, eventId, onEvent, onClose }) {
+  const box = useRef(null)
+  // 打開或換攤位時捲到明細，不然在畫面外看起來像沒反應
+  useEffect(() => { setTimeout(() => box.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }, [shop?.id])
   const [orders, setOrders] = useState(null)
   const [err, setErr] = useState('')
   const event = shop?.events.find((e) => e.id === eventId)
@@ -280,7 +285,7 @@ function ShopDetail({ shop, eventId, onEvent, onClose }) {
 
   if (!shop) return null
   return (
-    <div className="card hq-detail">
+    <div className="card hq-detail" ref={box} style={{ scrollMarginTop: 60 }}>
       <div className="row between wrap">
         <h3 style={{ margin: 0 }}>{shop.name}</h3>
         <div className="row gap">
