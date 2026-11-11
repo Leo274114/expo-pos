@@ -73,7 +73,15 @@ function ProductsTab() {
       }
     })
     TEMPLATE_PRODUCTS.forEach((p, i) => {
-      if (s.products.find((x) => x.name === p.name)) return
+      const cur = s.products.find((x) => x.name === p.name)
+      if (cur) {
+        // 舊版範本的生豆用「重量」，改用「生豆重量」；只在還沒有任何組合時自動換
+        if (p.name === '生豆' && (cur.levels || []).includes('weight') && !s.skus.some((k) => k.productId === cur.id)) {
+          b.set(doc(db, s.shopPath, 'products', cur.id), { levels: (cur.levels || []).map((x) => (x === 'weight' ? 'greenWeight' : x)) }, { merge: true })
+          added++
+        }
+        return
+      }
       added++
       const pid = s.newId(`${s.shopPath}/products`)
       b.set(doc(db, s.shopPath, 'products', pid), { ...p, active: true, order: 100 + i })
