@@ -102,6 +102,11 @@ export default function Pos() {
     if (thenAdd) pushLine(k, 1, false)
   }
   const tapSku = (k) => (isOn(k) ? addSku(k) : setOpenAsk(k))
+  // 打開選項：只有一個選擇的層自動帶過，只剩一個組合就直接加入
+  const openPicker = (product, chosen, inline = false) => {
+    const r = autoAdvance(product, posSkus.filter((k) => k.productId === product.id), chosen)
+    if (r.sku) { setPicker(null); tapSku(r.sku) } else setPicker({ product, chosen: r.chosen, inline })
+  }
 
   const updateLines = (fn, cartId = cart.id) => cs.update(cartId, (c) => ({ ...c, lines: fn(c.lines) }))
 
@@ -336,7 +341,7 @@ export default function Pos() {
                   const only = inCat.length === 1 && (inCat[0].levels || []).length ? inCat[0] : null
                   if (!only) return null
                   return <OptionButtons product={only} skus={posSkus.filter((k) => k.productId === only.id)} chosen={[]} avail={avail} isOn={isOn}
-                    onPick={tapSku} onChoose={(v) => setPicker({ product: only, chosen: [v] })} />
+                    onPick={tapSku} onChoose={(v) => openPicker(only, [v], true)} />
                 })()}
                 {curCat !== '熱賣' && posProducts.filter((p) => (p.category || '未分類') === curCat).filter((p, _, arr) => !(arr.length === 1 && (p.levels || []).length)).map((p) => {
                   const ks = posSkus.filter((k) => k.productId === p.id)
@@ -345,7 +350,7 @@ export default function Pos() {
                   const minP = Math.min(...ks.map(effectivePrice)), maxP = Math.max(...ks.map(effectivePrice))
                   const nOn = ks.filter(isOn).length
                   return (
-                    <button key={p.id} className={'pbtn' + (nOn ? '' : ' waiting')} style={{ '--cat': catColor(p.category) }} onClick={() => setPicker({ product: p, chosen: [] })}>
+                    <button key={p.id} className={'pbtn' + (nOn ? '' : ' waiting')} style={{ '--cat': catColor(p.category) }} onClick={() => openPicker(p, [])}>
                       <span className="pname">{p.name}</span>
                       <span className="pprice num">{minP === maxP ? fmt(minP) : `${fmt(minP)}–${fmt(maxP).replace('$', '')}`}</span>
                       <span className="pstock">{nOn ? `${nOn} 種選擇` : '未開賣'}{nOn && nOn < ks.length ? `・${ks.length - nOn} 未開賣` : ''}</span>
@@ -506,6 +511,32 @@ function SkuButton({ sku, label, avail, onClick, cat, waiting }) {
   )
 }
 
+// 往下一層時，只有一個選擇的層自動帶過；選到最後只剩一個組合就直接回傳它
+function autoAdvance(product, skus, chosen, optionLists) {
+  const n = (product.levels || []).length
+  const c = [...chosen]
+  while (c.length < n) {
+    const match = skus.filter((k) => c.every((v, i) => k.opts?.[i] === v))
+    const vals = [...new Set(match.map((k) => k.opts?.[c.length]))].filter((v) => v !== undefined)
+    if (vals.length !== 1) return { chosen: c }
+    c.push(vals[0])
+  }
+  const k = skus.find((x) => c.every((v, i) => x.opts?.[i] === v))
+  return k ? { sku: k } : { chosen: c.slice(0, -1) }
+}
+// 上一步：跳過只有一個選擇的層
+function autoBack(product, skus, chosen) {
+  const c = chosen.slice(0, -1)
+  while (c.length > 0) {
+    // 退到這一層時要顯示的選項只有一個，就再往上退
+    const match = skus.filter((k) => c.every((v, i) => k.opts?.[i] === v))
+    const vals = new Set(match.map((k) => k.opts?.[c.length]))
+    if (vals.size > 1) break
+    c.pop()
+  }
+  return c
+}
+
 function OptionPicker({ picker, setPicker, skus, avail, onPick, isOn }) {
   const s = useShop()
   const p = picker.product
@@ -513,11 +544,15 @@ function OptionPicker({ picker, setPicker, skus, avail, onPick, isOn }) {
   const depth = picker.chosen.length
   return (
     <Modal title={`${p.name}${picker.chosen.length ? '・' + picker.chosen.join('・') : ''}`} onClose={() => setPicker(null)} wide
-      footer={depth > 0 && <button onClick={() => setPicker({ ...picker, chosen: picker.chosen.slice(0, -1) })}>‹ 上一步</button>}>
+      footer={depth > 0 && <button onClick={() => {
+        const c = autoBack(p, skus, picker.chosen)
+        // 回到第一層、而第一層已經在收銀格子裡（類別只有一個商品）就直接關掉
+        if (!c.length && picker.inline) setPicker(null); else setPicker({ ...picker, chosen: c })
+      }}>‹ 上一步</button>}>
       <h4>選擇{levels[depth]?.name || '選項'}</h4>
       <div className="grid">
         <OptionButtons product={p} skus={skus} chosen={picker.chosen} avail={avail} isOn={isOn} onPick={onPick}
-          onChoose={(v) => setPicker({ ...picker, chosen: [...picker.chosen, v] })} />
+          onChoose={(v) => { const r = autoAdvance(p, skus, [...picker.chosen, v]); if (r.sku) onPick(r.sku); else setPicker({ ...picker, chosen: r.chosen }) }} />
       </div>
     </Modal>
   )
@@ -540,6 +575,11 @@ function OptionButtons({ product: p, skus, chosen, avail, isOn, onPick, onChoose
       return <SkuButton key={v} sku={k} label={v} cat={p.category} avail={avail(k)} waiting={!isOn(k)} onClick={() => onPick(k)} />
     }
     const sub = match.filter((x) => x.opts?.[depth] === v)
+    // 這個選項底下只有一個組合：直接顯示價格與庫存，點一下就加入
+    if (sub.length === 1) {
+      const k = sub[0]
+      return <SkuButton key={v} sku={k} label={(k.opts || []).slice(depth).filter(Boolean).join('・')} cat={p.category} avail={avail(k)} waiting={!isOn(k)} onClick={() => onPick(k)} />
+    }
     const subOn = sub.filter(isOn)
     const left = subOn.reduce((a, k) => a + Math.max(0, avail(k) === Infinity ? 0 : avail(k)), 0)
     return (
