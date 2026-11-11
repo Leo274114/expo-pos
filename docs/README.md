@@ -8,7 +8,7 @@
 | `build/系統功能說明.cjs` | 系統功能說明的排版程式（21 頁，淡橘底 #FDEBDB、標題深橘 #C85F0A、主色 #F58220） |
 | `build/系統優點.cjs` | 系統優點的排版程式（16 頁，每頁實際畫面截圖） |
 | `build/apply_theme.cjs` | 把配色寫進簡報主題的小工具 |
-| `shots/` | 系統優點用的 App 截圖（iPad 768×1024、iPhone 375×812，v0.15.0 實際畫面；總覽頁有攤商 email，不放） |
+| `shots/` | 系統優點用的 App 截圖（iPad 768×1024、iPhone 375×812，v0.22 畫面、假資料，由 build/shots.py 產生；總覽頁有攤商 email，不放） |
 
 ## 重新輸出
 
