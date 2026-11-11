@@ -46,7 +46,7 @@ async function icon(Comp, color) {
   });
 
   const I = {};
-  for (const [k, c] of Object.entries({ next: fa.FaRedoAlt, device: fa.FaMobileAlt, tap: fa.FaHandPointer, users: fa.FaUsers, sync: fa.FaSyncAlt, chart: fa.FaChartBar, cards: fa.FaClone, coins: fa.FaCoins, grid: fa.FaTh, sliders: fa.FaSlidersH, lock: fa.FaShieldAlt, store: fa.FaStore }))
+  for (const [k, c] of Object.entries({ next: fa.FaRedoAlt, trend: fa.FaChartLine, toggle: fa.FaToggleOn, share: fa.FaShareAlt, device: fa.FaMobileAlt, tap: fa.FaHandPointer, users: fa.FaUsers, sync: fa.FaSyncAlt, chart: fa.FaChartBar, cards: fa.FaClone, coins: fa.FaCoins, grid: fa.FaTh, sliders: fa.FaSlidersH, lock: fa.FaShieldAlt, store: fa.FaStore }))
     I[k] = await icon(c, '#FFFFFF');
   I.cash = await icon(fa.FaCashRegister, '#FFFFFF');
 
@@ -86,27 +86,28 @@ async function icon(Comp, color) {
   s.addText([
     { text: '為展場攤商做的收銀與庫存 App', options: { bold: true, breakLine: true } },
     { text: 'iPad、iPhone 開網址就能用，資料即時同步，不用付費', options: { breakLine: true } },
-    { text: '以下畫面皆為實際截圖（琥珀社咖啡莊園）' },
+    { text: '以下為 v0.22 實際 App 畫面（琥珀社咖啡莊園，示範資料）' },
   ], { placeholder: 'body' });
   shot(s, 'phone_pos', 6.55, 0.45, 4.6, PHONE);
   shot(s, 'phone_pick1', 8.15, 0.85, 4.1, PHONE);
 
   // 2 overview
   pres.addSection({ title: '系統優點' });
-  s = feature('十個讓攤位更好做生意的地方', 'store');
+  s = feature('十三個讓攤位更好做生意的地方', 'store');
   const ov = [
     ['device', '開網址就能用', '免安裝、免費'], ['tap', '點選不用打字', '逐層選規格'], ['users', '多客人同時結', '庫存就在按鈕上'],
     ['cash', '找零自動算', '還教你怎麼找'], ['chart', '收攤報表', '一眼看懂'],
     ['cards', '每筆一張卡片', '退換有紀錄'], ['coins', '零錢自動對帳', '算出應有現金'], ['grid', '一次建組合', '電腦勾選產生'],
     ['sliders', '功能可開關', '依攤位需求'], ['lock', '資料安全', '斷網也能用'],
+    ['trend', '品項人氣曲線', '下次備貨參考'], ['toggle', '未開賣一點就賣', '不用回管理頁'], ['share', '展覽清單共用', '測試資料一鍵清'],
   ];
   ov.forEach(([ic, h, d], i) => {
-    const col = i % 5, row = Math.floor(i / 5);
-    const x = 0.5 + col * 1.82, y = 1.35 + row * 1.9, w = 1.7, hh = 1.75;
+    const col = i % 7, row = Math.floor(i / 7);
+    const x = 0.5 + col * 1.3, y = 1.35 + row * 1.9, w = 1.2, hh = 1.75;
     s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h: hh, rectRadius: 0.1, fill: { color: C.background1 }, line: { color: 'F3C9A3', width: 0.75 }, objectName: '總覽卡 ' + h });
     s.addShape(pres.shapes.OVAL, { x: x + (w - 0.55) / 2, y: y + 0.18, w: 0.55, h: 0.55, fill: { color: C.accent1 }, line: { color: C.accent1 }, objectName: '總覽圖示底 ' + h });
     s.addImage({ data: I[ic], x: x + (w - 0.29) / 2, y: y + 0.31, w: 0.29, h: 0.29, objectName: '總覽圖示 ' + h });
-    s.addText([{ text: `${i + 1}. ${h}`, options: { bold: true, fontSize: 14, color: '3B2412', breakLine: true } }, { text: d, options: { fontSize: 11, color: '7A4A1E' } }],
+    s.addText([{ text: h, options: { bold: true, fontSize: 12, color: '3B2412', breakLine: true } }, { text: d, options: { fontSize: 10, color: '7A4A1E' } }],
       { x: x + 0.08, y: y + 0.85, w: w - 0.16, h: 0.8, margin: 0, align: 'center', valign: 'middle', isTextBox: true });
   });
 
@@ -117,7 +118,7 @@ async function icon(Comp, color) {
   explain(s, 5.6, 3.9, '同一個網址，裝置自動換版面', [
     ['iPad：左邊選商品、右邊收據', '大螢幕一眼看到品項與購物車'],
     ['iPhone：購物車收在下方', '點一下展開，單手也好操作'],
-    ['加到主畫面像 App 一樣', '免上架、免安裝、Firebase 免費方案'],
+    ['加到主畫面像 App 一樣', '免上架、免安裝；從 LINE 點開會自動改用 Safari'],
   ]);
 
   // 4 tap select
@@ -125,7 +126,7 @@ async function icon(Comp, color) {
   w = shot(s, 'phone_pick1', 0.6, 1.3, 3.75, PHONE);
   shot(s, 'phone_pick2', 0.6 + w + 0.3, 1.3, 3.75, PHONE);
   explain(s, 4.85, 4.65, '品種 → 處理法 → 重量，三下就選好', [
-    ['每格直接顯示剩餘數量', '「2 種，共剩 9」，不用另外查庫存'],
+    ['每格直接顯示剩餘數量', '「6 種，共剩 65」，不用另外查庫存'],
     ['熱賣分頁放最常賣的品項', '排行前幾名一點就加入'],
     ['也能搜尋或語音點單', '「SL-34 日曬半磅兩包」直接帶出'],
   ]);
@@ -136,15 +137,15 @@ async function icon(Comp, color) {
   shot(s, 'ipad_cart2', 0.6 + w + 0.3, 1.3, 3.75, IPAD);
   explain(s, 6.75, 2.75, '客人猶豫時，先幫下一位結帳', [
     ['「客人1（2）」分頁', '件數直接寫在分頁上'],
-    ['暫存單存在裝置上', 'App 關掉重開還在'],
-    ['按鈕直接寫剩幾件', '賣完變斜紋「售完」'],
+    ['品名一整行，數量在下方', '長品名也看得清楚'],
+    ['按錯「清除」可以復原', '暫存單 App 關掉重開也還在'],
   ]);
 
   // 4 change
   s = feature('4. 現金找零自動算，還告訴你怎麼找', 'cash');
   shot(s, 'ipad_checkout', 0.6, 1.3, 3.75, IPAD);
-  explain(s, 4.2, 5.3, '應收 $1,400、收 $2,000，馬上顯示找零 $600', [
-    ['建議找法直接列出', '「500×1　100×1」，忙的時候不會找錯'],
+  explain(s, 4.2, 5.3, '應收 $720、收 $1,000，馬上顯示找零 $280', [
+    ['建議找法直接列出', '「100×2　50×1　10×3」，忙的時候不會找錯'],
     ['快速按鈕：剛好、+100、+500、+1000', '大鈔一按就好，也能用數字鍵輸入'],
     ['同一畫面選現金或 LINE Pay', '也能改成贈與、沖泡耗用，扣庫存不計營業額'],
   ]);
@@ -156,14 +157,14 @@ async function icon(Comp, color) {
   explain(s, 6.75, 2.75, '營業額、現金、LINE Pay 分開列', [
     ['每小時營業額長條圖', '看出哪個時段最好賣'],
     ['熱賣排行與各品項數量', '切換今天或整個展期'],
-    ['低庫存清單', '售完的標紅，提醒補貨'],
+    ['完售紀錄、展期每日曲線', '哪個品項開賣多久賣完，一目了然'],
   ]);
 
   // 7 orders
   s = feature('6. 每筆交易一張卡片，退換貨有紀錄', 'cards');
   shot(s, 'ipad_orders', 0.6, 1.3, 3.75, IPAD);
   explain(s, 4.2, 5.3, '依日期與類型篩選，找單很快', [
-    ['卡片寫明時間、品項、付款方式', '#6 14:50 現金 $800，對帳有依據'],
+    ['卡片寫明時間、品項、付款方式', '#78 16:17 LINE Pay $1,980，滿額活動也標出來'],
     ['打錯單按「作廢」', '卡片變灰保留，庫存自動回補'],
     ['客人退換按「退換貨」', '整單折扣按比例分攤，兩張單互相連結'],
   ]);
@@ -180,10 +181,11 @@ async function icon(Comp, color) {
   // 9 matrix
   s = feature('8. 電腦上勾選規格，一次產生所有組合', 'grid');
   w = shot(s, 'ipad_matrix', 0.6, 1.3, 3.75, IPAD);
-  explain(s, 4.2, 5.3, '咖啡豆 13 個組合，不用一筆一筆建', [
-    ['品種 × 處理法 × 重量勾一勾', '按「產生組合」，已存在的自動略過'],
-    ['表格直接填定價、活動價、庫存', '「目前」欄即時顯示剩餘數量'],
-    ['組成功能共用庫存', '盒裝扣單包、套裝扣各品項'],
+  shot(s, 'ipad_lists', 0.6 + w + 0.3, 1.3, 3.75, IPAD);
+  explain(s, 6.75, 2.75, '咖啡豆 18 個組合，不用一筆一筆建', [
+    ['勾一勾按「產生組合」', '已存在的自動略過'],
+    ['表格直接填價格與庫存', '手機上組合欄固定在左'],
+    ['選項拖曳排序、拖到垃圾桶刪', '例：厭氧水洗直接加一個'],
   ]);
 
   // 10 settings
@@ -212,7 +214,36 @@ async function icon(Comp, color) {
   });
 
 
-  // 12 展後資料
+
+  // 11 分析
+  s = feature('11. 品項銷售曲線，看出哪個最受歡迎', 'trend');
+  shot(s, 'ipad_analysis', 0.6, 1.3, 3.75, IPAD);
+  explain(s, 4.2, 5.3, '品種＋處理法一條線，重量換算公克比較', [
+    ['「從開賣起算」最公平', '晚開賣的品項也能和早上就賣的比'],
+    ['表格列出每小時賣幾公克', '藝伎日曬 13:00 才開賣，每小時 308 g 最快'],
+    ['完售時間直接標在線上', '下次參展照這個備貨'],
+  ]);
+
+  // 12 未開賣
+  s = feature('12. 還沒開賣的品項，收銀畫面一點就開賣', 'toggle');
+  w = shot(s, 'ipad_waiting', 0.6, 1.3, 3.75, IPAD);
+  shot(s, 'ipad_waiting2', 0.6 + w + 0.3, 1.3, 3.75, IPAD);
+  explain(s, 6.75, 2.75, '四天展期分批上架', [
+    ['先填好價格與庫存再關掉', '收銀顯示灰色「未開賣」'],
+    ['點一下就開賣', '可直接加入目前客人'],
+    ['開賣時間自動記錄', '分析頁從這一刻起算'],
+  ]);
+
+  // 13 展覽清單
+  s = feature('13. 展覽共用、測試資料一鍵清除', 'share');
+  shot(s, 'ipad_events', 0.6, 1.3, 3.75, IPAD);
+  explain(s, 4.2, 5.3, '同一個展覽，第一個人建好，大家直接用', [
+    ['按「使用」複製名稱、日期、營業時間', '各攤可以自己改，不影響別人；清單看不到是誰建立'],
+    ['開展前盡量測試結帳、退貨、零錢', '開展前一天按「清除測試資料」，庫存回到初始數量'],
+    ['初始庫存、商品、價格都保留', '開始日當天以後的資料不會被刪'],
+  ]);
+
+  // 14 展後資料
   s = feature('加碼：展後資料，下次參展更好準備', 'next');
   const rows = [
     ['看哪個數字', '在哪裡', '下次怎麼用'],
