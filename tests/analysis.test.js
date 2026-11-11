@@ -63,3 +63,12 @@ test('完售標籤錯開不重疊', () => {
   const out = spreadLabels([{ y: 50 }, { y: 52 }, { y: 54 }], 15, 0, 300)
   for (let i = 1; i < out.length; i++) assert.ok(out[i].y - out[i - 1].y >= 15)
 })
+
+test('得獎的和一般的分成兩個比較品項', () => {
+  const a = groupOf({ productId: 'p1', opts: ['SL-34', '日曬', '1/4磅'], award: '金質獎' }, bean, lists)
+  const b = groupOf({ productId: 'p1', opts: ['SL-34', '日曬', '1/2磅'], award: '金質獎' }, bean, lists)
+  const c = groupOf({ productId: 'p1', opts: ['SL-34', '日曬', '1/4磅'] }, bean, lists)
+  assert.equal(a.key, b.key)
+  assert.notEqual(a.key, c.key)
+  assert.equal(a.name, '咖啡豆・金質獎・SL-34・日曬')
+})
