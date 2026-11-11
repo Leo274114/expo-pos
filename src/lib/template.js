@@ -5,7 +5,9 @@ export const TEMPLATE_LISTS = [
   { key: 'weight', name: '重量', values: ['1/4磅', '1/2磅'] },
   { key: 'greenWeight', name: '生豆重量', values: ['1公斤', '3公斤', '5公斤'] },
   { key: 'pack', name: '包裝', values: ['單包', '一盒'] },
-  { key: 'tea', name: '茶種', values: ['烏龍', '金萱', '紅茶'] }
+  { key: 'tea', name: '茶種', values: ['烏龍', '金萱', '紅茶'] },
+  // 獎項不是選項層，是每個組合的前綴（組合表「獎項」欄）
+  { key: 'award', name: '獎項', values: ['頭等獎', '金質獎', '銀質獎', '優選'] }
 ]
 
 // 類別顯示順序；「周邊產品」預設是空的，讓攤主自由新增
@@ -72,4 +74,4 @@ export const DEFAULT_SUPPLIES = [
   { id: 'filter', name: '濾紙', unit: '包' },
   { id: 'bag', name: '手提袋', unit: '個' }
 ]
-export const SUPPLY_UNITS = ['條', '包', '個', '盒', '張', '捲', '箱']
+export const SUPPLY_UNITS = ['條', '包', '個', '盒', '張']

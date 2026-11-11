@@ -330,7 +330,15 @@ export default function Pos() {
                     <SkuButton sku={sku} label={skuLabel(sku, s.productById[sku.productId])} cat={s.productById[sku.productId]?.category} avail={avail(sku)} onClick={() => addSku(sku)} />
                   </div>
                 ))}
-                {curCat !== '熱賣' && posProducts.filter((p) => (p.category || '未分類') === curCat).map((p) => {
+                {curCat !== '熱賣' && (() => {
+                  // 類別裡只有一個有選項的商品（例：咖啡豆、濾掛、生豆）：直接顯示它的第一層選項，少點一次
+                  const inCat = posProducts.filter((p) => (p.category || '未分類') === curCat)
+                  const only = inCat.length === 1 && (inCat[0].levels || []).length ? inCat[0] : null
+                  if (!only) return null
+                  return <OptionButtons product={only} skus={posSkus.filter((k) => k.productId === only.id)} chosen={[]} avail={avail} isOn={isOn}
+                    onPick={tapSku} onChoose={(v) => setPicker({ product: only, chosen: [v] })} />
+                })()}
+                {curCat !== '熱賣' && posProducts.filter((p) => (p.category || '未分類') === curCat).filter((p, _, arr) => !(arr.length === 1 && (p.levels || []).length)).map((p) => {
                   const ks = posSkus.filter((k) => k.productId === p.id)
                   const single = !(p.levels || []).length && ks.length === 1
                   if (single) return <SkuButton key={p.id} sku={ks[0]} label={p.name} cat={p.category} avail={avail(ks[0])} waiting={!isOn(ks[0])} onClick={() => tapSku(ks[0])} />
@@ -488,6 +496,7 @@ function SkuButton({ sku, label, avail, onClick, cat, waiting }) {
   const low = !out && !waiting && avail !== Infinity && avail <= 3
   return (
     <button className={'pbtn' + (out ? ' soldout' : '') + (waiting ? ' waiting' : '')} style={{ '--cat': catColor(cat) }} onClick={onClick}>
+      {sku.award && !String(label).includes(sku.award) && <em className="award-tag">{sku.award}</em>}
       <span className="pname">{label}</span>
       <span className="pprice num">
         {sku.promoPrice != null && sku.promoPrice !== '' && <s>{fmt(sku.price)}</s>}{fmt(effectivePrice(sku))}
@@ -502,34 +511,44 @@ function OptionPicker({ picker, setPicker, skus, avail, onPick, isOn }) {
   const p = picker.product
   const levels = (p.levels || []).map((id) => s.optionLists.find((l) => l.id === id))
   const depth = picker.chosen.length
-  const match = skus.filter((k) => picker.chosen.every((v, i) => k.opts?.[i] === v))
-  const isLast = depth === levels.length - 1
-  const values = [...new Set(match.map((k) => k.opts?.[depth]))].filter((v) => v !== undefined)
-  // 依清單原本順序排列
-  const order = levels[depth]?.values || []
-  values.sort((a, b) => order.indexOf(a) - order.indexOf(b))
   return (
     <Modal title={`${p.name}${picker.chosen.length ? '・' + picker.chosen.join('・') : ''}`} onClose={() => setPicker(null)} wide
       footer={depth > 0 && <button onClick={() => setPicker({ ...picker, chosen: picker.chosen.slice(0, -1) })}>‹ 上一步</button>}>
       <h4>選擇{levels[depth]?.name || '選項'}</h4>
       <div className="grid">
-        {values.map((v) => {
-          if (isLast) {
-            const k = match.find((x) => x.opts?.[depth] === v)
-            return <SkuButton key={v} sku={k} label={v} cat={p.category} avail={avail(k)} waiting={!isOn(k)} onClick={() => onPick(k)} />
-          }
-          const sub = match.filter((x) => x.opts?.[depth] === v)
-          const subOn = sub.filter(isOn)
-          const left = subOn.reduce((a, k) => a + Math.max(0, avail(k) === Infinity ? 0 : avail(k)), 0)
-          return (
-            <button key={v} className={'pbtn' + (subOn.length ? '' : ' waiting')} style={{ '--cat': catColor(p.category) }} onClick={() => setPicker({ ...picker, chosen: [...picker.chosen, v] })}>
-              <span className="pname">{v}</span><span className="pstock">{subOn.length ? `${subOn.length} 種${left ? `，共剩 ${left}` : ''}${subOn.length < sub.length ? `・${sub.length - subOn.length} 未開賣` : ''}` : '未開賣'}</span>
-            </button>
-          )
-        })}
+        <OptionButtons product={p} skus={skus} chosen={picker.chosen} avail={avail} isOn={isOn} onPick={onPick}
+          onChoose={(v) => setPicker({ ...picker, chosen: [...picker.chosen, v] })} />
       </div>
     </Modal>
   )
+}
+
+// 某一層的選項按鈕（選項視窗、以及類別只有一個商品時直接放在收銀格子裡）
+function OptionButtons({ product: p, skus, chosen, avail, isOn, onPick, onChoose }) {
+  const s = useShop()
+  const levels = (p.levels || []).map((id) => s.optionLists.find((l) => l.id === id))
+  const depth = chosen.length
+  const match = skus.filter((k) => chosen.every((v, i) => k.opts?.[i] === v))
+  const isLast = depth === levels.length - 1
+  const values = [...new Set(match.map((k) => k.opts?.[depth]))].filter((v) => v !== undefined)
+  // 依清單原本順序排列
+  const order = levels[depth]?.values || []
+  values.sort((a, b) => order.indexOf(a) - order.indexOf(b))
+  return values.map((v) => {
+    if (isLast) {
+      const k = match.find((x) => x.opts?.[depth] === v)
+      return <SkuButton key={v} sku={k} label={v} cat={p.category} avail={avail(k)} waiting={!isOn(k)} onClick={() => onPick(k)} />
+    }
+    const sub = match.filter((x) => x.opts?.[depth] === v)
+    const subOn = sub.filter(isOn)
+    const left = subOn.reduce((a, k) => a + Math.max(0, avail(k) === Infinity ? 0 : avail(k)), 0)
+    return (
+      <button key={v} className={'pbtn' + (subOn.length ? '' : ' waiting')} style={{ '--cat': catColor(p.category) }} onClick={() => onChoose(v)}>
+        {sub[0]?.award && sub.every((k) => k.award === sub[0].award) && <em className="award-tag">{sub[0].award}</em>}
+        <span className="pname">{v}</span><span className="pstock">{subOn.length ? `${subOn.length} 種${left ? `，共剩 ${left}` : ''}${subOn.length < sub.length ? `・${sub.length - subOn.length} 未開賣` : ''}` : '未開賣'}</span>
+      </button>
+    )
+  })
 }
 
 // ---------------- 語音點單 ----------------

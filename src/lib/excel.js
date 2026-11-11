@@ -188,7 +188,7 @@ export function priceListRows(s) {
   for (const c of cats) {
     for (const p of prods.filter((x) => (x.category || '未分類') === c)) {
       for (const k of skus.filter((x) => x.productId === p.id)) {
-        rows.push({ 類別: c, 品項: p.name, 規格: (k.opts || []).filter(Boolean).join('・'), 單位: p.unit || '', 定價: k.price || 0, 活動價: k.promoPrice ?? '' })
+        rows.push({ 類別: c, 品項: p.name, 規格: [k.award, ...(k.opts || [])].filter(Boolean).join('・'), 單位: p.unit || '', 定價: k.price || 0, 活動價: k.promoPrice ?? '' })
       }
     }
   }

@@ -623,6 +623,10 @@ input.need { border-color: var(--cherry) !important; }
 .supply-item-row input { flex: 1; width: auto; min-width: 0; }
 .supply-item-row input.supply-unit { flex: 0 0 84px; }
 .supply-item-row button { flex: 0 0 auto; }
+.supply-item-row select.supply-unit { flex: 0 0 84px; min-height: 40px; }
+.supply-item-row.off input { opacity: 0.45; }
+.unit-picker { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.unit-picker input.supply-unit { width: 72px; flex: none; }
 .lamp.red { background: #d64545; }
 /* 曲線圖：從 0 往上長 */
 .line-box { position: relative; }
@@ -679,3 +683,7 @@ input.need { border-color: var(--cherry) !important; }
 /* 剛產生的組合亮一下 */
 .sku-table tr.fresh td { animation: freshRow 2.4s ease-out; }
 @keyframes freshRow { 0%, 40% { background: #fff1c2; } 100% { background: transparent; } }
+/* 獎項 */
+.award-tag { font-style: normal; font-size: 12px; font-weight: 700; color: #a8650a; background: #fff1dc; border: 1px solid #f3c98f; border-radius: 6px; padding: 0 5px; margin-bottom: 2px; align-self: flex-start; }
+.award-select { min-height: 40px; min-width: 92px; font-size: 15px; }
+.pbtn .award-tag { display: inline-block; margin: 0 0 2px; }

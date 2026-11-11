@@ -49,7 +49,8 @@ export function groupOf(sku, product, optionLists = []) {
   const lists = (product.levels || []).map((id) => optionLists.find((l) => l.id === id))
   const wi = lists.findIndex(isWeightList)
   const opts = sku.opts || []
-  const rest = opts.filter((_, i) => i !== wi).filter(Boolean)
+  // 獎項不同＝不同批豆子，分開比較
+  const rest = [sku.award, ...opts.filter((_, i) => i !== wi)].filter(Boolean)
   const grams = wi >= 0 ? parseGrams(opts[wi]) : null
   return {
     key: [product.id, ...rest].join('|'),

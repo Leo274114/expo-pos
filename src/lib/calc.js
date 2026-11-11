@@ -75,7 +75,8 @@ export const countTotal = (counts = {}) =>
 // ---------- 商品 ----------
 export function skuLabel(sku, product) {
   const base = product?.name ?? sku?.productName ?? '?'
-  const opts = (sku?.opts || []).filter(Boolean)
+  // 獎項（例：金質獎）放在選項最前面
+  const opts = [sku?.award, ...(sku?.opts || [])].filter(Boolean)
   return opts.length ? `${base}・${opts.join('・')}` : base
 }
 
@@ -340,7 +341,9 @@ export function soldOutTimes(stockInit = {}, orders = [], adjustments = []) {
 export function supplyRows(items = [], records = {}) {
   const num = (v) => (v === '' || v == null ? null : Number(v))
   const ids = new Set(items.map((x) => x.id))
-  const rows = items.map((it) => ({ ...(records[it.id] || {}), id: it.id, name: it.name, unit: it.unit }))
+  // 關掉（active === false）的耗材不列；但這個場次已經有填數字的仍列出，資料不會不見
+  const has = (r) => r && (r.prep != null && r.prep !== '' || r.left != null && r.left !== '')
+  const rows = items.filter((it) => it.active !== false || has(records[it.id])).map((it) => ({ ...(records[it.id] || {}), id: it.id, name: it.name, unit: it.unit }))
   // 已從清單移除、但這個場次有紀錄的耗材也列出來
   for (const [id, x] of Object.entries(records || {})) if (!ids.has(id)) rows.push({ ...x, id })
   return rows.map((x) => {

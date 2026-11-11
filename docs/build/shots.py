@@ -134,21 +134,17 @@ def ipad(pg):
   # 收銀
   go(pg, '/')
   shot(pg, 'ipad_pos')
-  cat(pg, '咖啡豆'); prod(pg, '咖啡豆')
-  pg.locator('.modal .pbtn', has_text='SL-34').click(); pg.wait_for_timeout(300)
+  cat(pg, '咖啡豆'); prod(pg, 'SL-34')
   pg.locator('.modal .pbtn', has_text='日曬').first.click(); pg.wait_for_timeout(300)
   pg.locator('.modal .pbtn').nth(1).click(); pg.wait_for_timeout(300)
-  cat(pg, '濾掛'); prod(pg, '濾掛')
-  pg.locator('.modal .pbtn').first.click(); pg.wait_for_timeout(300)
-  pg.locator('.modal .pbtn').first.click() if pg.locator('.modal').count() else None
+  cat(pg, '濾掛'); pg.locator('.grid .pbtn').first.click(); pg.wait_for_timeout(300)
   pg.wait_for_timeout(300)
   shot(pg, 'ipad_cart1')
   pg.get_by_role('button', name='新增客人').click(); pg.wait_for_timeout(400)
   cat(pg, '咖啡周邊茶'); prod(pg, '咖啡花茶'); prod(pg, '咖啡花茶'); prod(pg, '咖啡果皮茶')
   shot(pg, 'ipad_cart2')
   # 未開賣
-  cat(pg, '咖啡豆'); prod(pg, '咖啡豆')
-  pg.locator('.modal .pbtn', has_text='藝伎').click(); pg.wait_for_timeout(500)
+  cat(pg, '咖啡豆'); prod(pg, '藝伎')
   shot(pg, 'ipad_waiting')
   pg.locator('.modal .pbtn', has_text='厭氧水洗').click(); pg.wait_for_timeout(300)
   pg.locator('.modal .pbtn').first.click(); pg.wait_for_timeout(500)
@@ -172,9 +168,9 @@ def ipad(pg):
 def phone(pg):
   pg.set_viewport_size({'width': 375, 'height': 812})
   go(pg, '/'); shot(pg, 'phone_pos')
-  cat(pg, '咖啡豆'); prod(pg, '咖啡豆')
+  cat(pg, '咖啡豆')
   shot(pg, 'phone_pick1')
-  pg.locator('.modal .pbtn', has_text='SL-34').click(); pg.wait_for_timeout(300)
+  prod(pg, 'SL-34')
   shot(pg, 'phone_pick2')
 
 if __name__ == '__main__':

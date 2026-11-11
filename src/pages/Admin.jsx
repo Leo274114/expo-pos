@@ -252,7 +252,7 @@ function ProductForm({ product, onClose, initialCategory = '' }) {
         {[0, 1, 2].map((i) => (
           <select key={i} value={f.levels[i] || ''} onChange={(e) => setLevel(i, e.target.value)}>
             <option value="">— 第 {i + 1} 層：不使用 —</option>
-            {s.optionLists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            {s.optionLists.filter((l) => l.id !== 'award').map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         ))}
         {!s.optionLists.length && <p className="muted">沒有選項清單，請先到「選項清單」建立，或載入內建範本。</p>}
@@ -362,12 +362,25 @@ function SkuTable({ product, skus, fresh = [] }) {
   const del = (k) => { if (confirm('刪除這個組合？')) commit(writeBatch(db).delete(doc(db, s.shopPath, 'skus', k.id))) }
   const tracked = (id) => { const k = s.skuById[id]; return !!k && s.productById[k.productId]?.trackStock !== false }
   const showStock = product.trackStock !== false
+  // 獎項欄：咖啡豆、生豆（或有品種層、已設過獎項）才顯示
+  // 還沒建立「獎項」清單的攤位先用內建的
+  const awardList = s.optionLists.find((l) => l.id === 'award') || TEMPLATE_LISTS.find((l) => l.key === 'award')
+  const showAward = (['咖啡豆', '生豆'].includes(product.category) || (product.levels || []).includes('variety') || skus.some((k) => k.award))
+  const levels = (product.levels || []).map((id) => s.optionLists.find((l) => l.id === id))
+  const wi = levels.findIndex((l) => l && (l.id === 'weight' || l.id === 'greenWeight' || /重量/.test(l.name || '')))
+  const sameLot = (a, b) => (a.opts || []).every((o, i) => i === wi || o === (b.opts || [])[i])
+  // 設定獎項：同品種、同處理法（重量以外的選項都相同）的組合一起套用
+  const setAward = (k, award) => {
+    const b = writeBatch(db)
+    skus.filter((x) => x.id === k.id || sameLot(x, k)).forEach((x) => b.set(doc(db, s.shopPath, 'skus', x.id), { award: award || null }, { merge: true }))
+    commit(b)
+  }
   if (!skus.length) return <p className="muted">還沒有組合。</p>
   return (
     <div className="table-wrap">
       <table className="sku-table">
         <thead>
-          <tr><th className="sku-sticky">組合</th><th>定價</th><th>活動價<Help>{HELP.promoPrice}</Help></th>{showStock && <><th>初始庫存<Help>{HELP.initStock}</Help></th><th>目前</th></>}<th>組成<Help>{HELP.components}</Help></th><th>啟用</th><th></th></tr>
+          <tr><th className="sku-sticky">組合</th>{showAward && <th>獎項<Help>{HELP.award}</Help></th>}<th>定價</th><th>活動價<Help>{HELP.promoPrice}</Help></th>{showStock && <><th>初始庫存<Help>{HELP.initStock}</Help></th><th>目前</th></>}<th>組成<Help>{HELP.components}</Help></th><th>啟用</th><th></th></tr>
         </thead>
         <SortGroup as="tbody" items={skus} onDrop={(a, b) => reorderTo(s.shopPath, 'skus', skus, a, b)}>
           {(k, i, grip) => {
@@ -376,8 +389,16 @@ function SkuTable({ product, skus, fresh = [] }) {
             return (
               <tr key={k.id} data-sort className={(k.active === false ? 'off' : '') + (fresh.includes(k.id) ? ' fresh' : '')}>
                 <td className="sku-sticky">
-                  <div className="sku-name">{grip}<span className="sku-opts">{(k.opts || []).length ? k.opts.map((o, j) => <span key={j}>{o}</span>) : <span>{product.name}</span>}</span></div>
+                  <div className="sku-name">{grip}<span className="sku-opts">{k.award && <em className="award-tag">{k.award}</em>}{(k.opts || []).length ? k.opts.map((o, j) => <span key={j}>{o}</span>) : <span>{product.name}</span>}</span></div>
                 </td>
+                {showAward && (
+                  <td>
+                    <select className="award-select" value={k.award || ''} onChange={(e) => setAward(k, e.target.value)}>
+                      <option value="">—</option>
+                      {[...new Set([...(awardList.values || []), ...(k.award ? [k.award] : [])])].map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </td>
+                )}
                 <td><NumCell value={k.price} onSave={(v) => setSku(k.id, { price: Number(v) || 0 })} /></td>
                 <td><NumCell value={k.promoPrice ?? ''} placeholder="無" onSave={(v) => setSku(k.id, { promoPrice: v === '' ? null : Number(v) })} /></td>
                 {showStock && (comps.length ? (
@@ -479,6 +500,12 @@ function ListsTab() {
     <div>
       <p className="muted">品種、處理法、重量等選項。按住選項左右拖曳換順序；拖到右邊垃圾桶就刪除（已建好的組合不受影響，之後需要再新增即可；載入內建範本也不會再補回來）。</p>
       {s.optionLists.map((l) => <ListCard key={l.id} l={l} />)}
+      {!s.optionLists.some((l) => l.id === 'award') && (
+        <div className="card">
+          <b>獎項</b> <span className="muted small">咖啡豆、生豆組合表的「獎項」欄用（內建頭等獎、金質獎、銀質獎、優選）</span>
+          <p><button onClick={() => { const t = TEMPLATE_LISTS.find((l) => l.key === 'award'); commit(writeBatch(db).set(doc(db, s.shopPath, 'optionLists', 'award'), { name: t.name, values: t.values, removed: [], order: Date.now() })) }}>建立獎項清單</button></p>
+        </div>
+      )}
       <div className="row gap">
         <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="新的選項清單名稱，例：烘焙度" />
         <button onClick={addList}>＋ 新增清單</button>
@@ -687,21 +714,22 @@ function EventsTab() {
                 </p>
               )
             })()}
-            {(() => {
-              const t = testData(e)
-              const n = t ? t.orders.length + t.shipping.length + t.adjustments.length + t.cashCounts.length + t.cashMoves.length : 0
-              return t && (
-                <div className="test-clear">
-                  <b>清除測試資料</b><Help>{HELP.clearTest}</Help>
-                  <p className="muted small">{n ? `開始日期（${e.start}）之前有 ${t.orders.length} 筆單據、${t.adjustments.length} 筆庫存調整、${t.cashCounts.length + t.cashMoves.length} 筆零錢紀錄。` : `開始日期（${e.start}）之前沒有資料。`}</p>
-                  <button disabled={!n} onClick={() => setClearAsk(e)}>清除開始日之前的測試資料</button>
-                </div>
-              )
-            })()}
             <button className="danger" onClick={() => wipe(e)}>刪除此場次資料</button>
           </div>
         )
       })}
+      {s.event && (() => {
+        const e = s.event
+        const t = testData(e)
+        const n = t ? t.orders.length + t.shipping.length + t.adjustments.length + t.cashCounts.length + t.cashMoves.length : 0
+        return t && (
+          <div className="card test-clear-card">
+            <h4>清除測試資料<Help>{HELP.clearTest}</Help></h4>
+            <p className="muted">目前場次「{e.name}」開始日期（{e.start}）之前：{n ? `${t.orders.length} 筆單據、${t.adjustments.length} 筆庫存調整、${t.cashCounts.length + t.cashMoves.length} 筆零錢紀錄。` : '沒有資料。'}清除後庫存回到初始數量。</p>
+            <button className="danger" disabled={!n} onClick={() => setClearAsk(e)}>清除開始日之前的測試資料</button>
+          </div>
+        )
+      })()}
       <div className="card">
         <h4>從展覽清單建立<Help>{HELP.expos}</Help></h4>
         {expos === null ? <p className="muted">讀取中…</p> : !openExpos.length ? (

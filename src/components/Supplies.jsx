@@ -5,6 +5,8 @@ import { useShop, useUi, commit, deviceId } from '../store.jsx'
 import { SUPPLY_UNITS } from '../lib/template.js'
 import { supplyRows as calcSupplyRows } from '../lib/calc.js'
 import Help from './Help.jsx'
+import SortGroup from './SortGroup.jsx'
+import { Switch } from '../pages/Admin.jsx'
 import { HELP } from '../lib/help.js'
 
 // 耗材：試飲杯、濾紙、手提袋…（不賣、不計營業額、與商品庫存分開）
@@ -57,7 +59,7 @@ export function SuppliesTab() {
     const n = name.trim()
     if (!n) return toast('請輸入耗材名稱', { kind: 'error' })
     if (items.some((x) => x.name === n)) return toast('已經有這個耗材', { kind: 'error' })
-    saveItems([...items, { id: s.newId(`${s.shopPath}/events`), name: n, unit: unit.trim() || '個' }])
+    saveItems([...items, { id: s.newId(`${s.shopPath}/events`), name: n, unit: unit.trim() || '個', active: true }])
     setName('')
   }
   const rename = (it, patch) => saveItems(items.map((x) => (x.id === it.id ? { ...x, ...patch } : x)))
@@ -103,23 +105,50 @@ export function SuppliesTab() {
 
       <div className="card">
         <h4>耗材清單（每個場次共用）</h4>
-        {items.map((it) => (
-          <div key={it.id} className="supply-item-row">
-            <input defaultValue={it.name} key={it.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.name) rename(it, { name: v }) }} />
-            <input className="supply-unit" list="supply-units" defaultValue={it.unit} key={'u' + it.unit}
-              onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.unit) rename(it, { unit: v }) }} />
-            <button className="small-btn ghost" onClick={() => remove(it)}>移除</button>
-          </div>
-        ))}
+        <p className="muted small">按住左邊 ⋮⋮ 上下拖曳換順序。右邊開關關掉＝這次不帶，清單保留，上面表格、收攤提醒、總結與 Excel 都不顯示；下次要用再打開（所有場次共用）。</p>
+        <SortGroup items={items} onDrop={(a, b) => { const next = [...items]; const [x] = next.splice(a, 1); next.splice(b, 0, x); saveItems(next) }}>
+          {(it, i, grip) => (
+            <div key={it.id} data-sort className={'supply-item-row' + (it.active === false ? ' off' : '')}>
+              {grip}
+              <input defaultValue={it.name} key={it.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.name) rename(it, { name: v }) }} />
+              <UnitPicker value={it.unit} onChange={(v) => v !== it.unit && rename(it, { unit: v })} />
+              <Switch checked={it.active !== false} onChange={(v) => rename(it, { active: v })} />
+              <button className="small-btn ghost" onClick={() => remove(it)}>移除</button>
+            </div>
+          )}
+        </SortGroup>
         <div className="supply-item-row" style={{ marginTop: 10 }}>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="新增耗材，例：攪拌棒" />
-          <input className="supply-unit" list="supply-units" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="單位" />
+          <UnitPicker value={unit} onChange={setUnit} />
           <button onClick={add}>新增</button>
         </div>
-        <datalist id="supply-units">{SUPPLY_UNITS.map((u) => <option key={u} value={u} />)}</datalist>
-        <p className="muted small">單位可從清單選（條、包、個、盒…），也可以自己打。</p>
+        <p className="muted small">單位可選條、包、個、盒、張；選「自訂…」可以自己打。</p>
       </div>
     </div>
+  )
+}
+
+// 單位：內建選單＋自訂
+function UnitPicker({ value, onChange }) {
+  const preset = SUPPLY_UNITS.includes(value)
+  const [custom, setCustom] = useState(!preset && !!value)
+  const [v, setV] = useState(value || '')
+  useEffect(() => { setV(value || ''); if (value && !SUPPLY_UNITS.includes(value)) setCustom(true) }, [value])
+  if (custom) {
+    return (
+      <span className="unit-picker">
+        <input className="supply-unit" value={v} placeholder="單位" autoFocus={!value}
+          onChange={(e) => setV(e.target.value)} onBlur={() => { const t = v.trim(); if (t) onChange(t) }} />
+        <button className="link small" onClick={() => { setCustom(false); onChange(SUPPLY_UNITS[2]) }}>選單</button>
+      </span>
+    )
+  }
+  return (
+    <select className="supply-unit" value={preset ? value : ''} onChange={(e) => (e.target.value === '__custom' ? (setV(''), setCustom(true)) : onChange(e.target.value))}>
+      {!preset && <option value="">單位</option>}
+      {SUPPLY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+      <option value="__custom">自訂…</option>
+    </select>
   )
 }
 
