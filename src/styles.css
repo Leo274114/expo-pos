@@ -318,7 +318,17 @@ textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); bor
 .admin h3.cat { color: var(--tea-deep); border-bottom: 2px solid var(--line); padding-bottom: 6px; margin-top: 22px; }
 .product-body { margin-top: 12px; }
 .matrix { background: var(--paper); padding: 10px 14px; border-radius: var(--r-md); margin: 12px 0; }
-.sku-table input.num { max-width: 110px; min-height: 38px; padding: 4px 10px; }
+.sku-table input.num { width: 96px; max-width: none; min-height: 40px; padding: 4px 10px; font-size: 16px; }
+.sku-table { min-width: 720px; }
+.sku-table td { white-space: nowrap; }
+/* 組合欄：品種、處理法、重量各一行，往右捲動時固定在左邊 */
+.sku-table .sku-sticky { position: sticky; left: 0; z-index: 2; background: var(--surface); box-shadow: 1px 0 0 var(--line), 6px 0 8px -6px rgba(0, 0, 0, 0.18); min-width: 128px; }
+.sku-table thead .sku-sticky { z-index: 3; }
+.sku-name { display: flex; align-items: center; gap: 6px; }
+.sku-opts { display: flex; flex-direction: column; line-height: 1.3; font-weight: 600; }
+.sku-opts span + span { font-weight: 400; color: var(--muted); font-size: 14px; }
+.sku-table tr.off td.sku-sticky { opacity: 1; }
+.sku-table tr.off td.sku-sticky .sku-name { opacity: 0.4; }
 .picker { height: auto; }
 .settings h4 { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
 .move { display: inline-flex; flex-direction: column; gap: 2px; }
@@ -664,3 +674,5 @@ input.need { border-color: var(--cherry) !important; }
 .test-clear p { margin: 4px 0 8px; }
 .expo-group { margin: 8px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); }
 .expo-group .chips { margin: 6px 0 0; }
+
+.admin-tools button { white-space: nowrap; }

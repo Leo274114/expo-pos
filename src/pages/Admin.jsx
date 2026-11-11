@@ -165,7 +165,7 @@ function ProductsTab() {
   return (
     <div>
       {!s.eventId && <div className="warn">尚未選擇展覽場次，請先到「展覽場次」建立並設為目前場次，才能填初始庫存。</div>}
-      <div className="row gap">
+      <div className="row gap wrap admin-tools">
         <button className="primary" onClick={() => setAdding('')}>＋ 新增商品</button>
         <button onClick={seedTemplate}>載入內建範本</button>
         <button onClick={addCat}>＋ 新增類別</button>
@@ -346,7 +346,7 @@ function SkuTable({ product, skus }) {
     <div className="table-wrap">
       <table className="sku-table">
         <thead>
-          <tr><th></th><th>組合</th><th>定價</th><th>活動價<Help>{HELP.promoPrice}</Help></th>{showStock && <><th>初始庫存<Help>{HELP.initStock}</Help></th><th>目前</th></>}<th>組成<Help>{HELP.components}</Help></th><th>啟用</th><th></th></tr>
+          <tr><th className="sku-sticky">組合</th><th>定價</th><th>活動價<Help>{HELP.promoPrice}</Help></th>{showStock && <><th>初始庫存<Help>{HELP.initStock}</Help></th><th>目前</th></>}<th>組成<Help>{HELP.components}</Help></th><th>啟用</th><th></th></tr>
         </thead>
         <SortGroup as="tbody" items={skus} onDrop={(a, b) => reorderTo(s.shopPath, 'skus', skus, a, b)}>
           {(k, i, grip) => {
@@ -354,8 +354,9 @@ function SkuTable({ product, skus }) {
             const canMake = comps.length ? componentAvail(comps, (id) => (tracked(id) ? s.stock[id] ?? 0 : Infinity)) : null
             return (
               <tr key={k.id} data-sort className={k.active === false ? 'off' : ''}>
-                <td>{grip}</td>
-                <td>{(k.opts || []).join('・') || product.name}</td>
+                <td className="sku-sticky">
+                  <div className="sku-name">{grip}<span className="sku-opts">{(k.opts || []).length ? k.opts.map((o, j) => <span key={j}>{o}</span>) : <span>{product.name}</span>}</span></div>
+                </td>
                 <td><NumCell value={k.price} onSave={(v) => setSku(k.id, { price: Number(v) || 0 })} /></td>
                 <td><NumCell value={k.promoPrice ?? ''} placeholder="無" onSave={(v) => setSku(k.id, { promoPrice: v === '' ? null : Number(v) })} /></td>
                 {showStock && (comps.length ? (
