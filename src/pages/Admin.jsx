@@ -649,8 +649,10 @@ function EventsTab() {
       refs.slice(i, i + 400).forEach((r) => b.delete(r))
       await commit(b)
     }
+    // 記下清除時間：每台裝置的客人編號會回到客人1
+    commit(writeBatch(db).set(doc(db, s.shopPath, 'events', e.id), { testClearedAt: Date.now() }, { merge: true }))
     setClearAsk(null)
-    toast(`已清除 ${refs.length} 筆測試資料，庫存回到初始數量`)
+    toast(`已清除 ${refs.length} 筆測試資料，庫存回到初始數量，客人編號從 1 開始`)
   }
   const setCurrent = (id) => commit(writeBatch(db).set(doc(db, s.shopPath), { currentEventId: id }, { merge: true }))
   const saveEv = (e, patch) => commit(writeBatch(db).set(doc(db, s.shopPath, 'events', e.id), patch, { merge: true }))
@@ -781,7 +783,7 @@ function ClearTestModal({ e, onClose, onOk }) {
     <Modal title="清除測試資料" onClose={onClose}
       footer={<><button onClick={onClose}>取消</button><button className="danger" disabled={w !== '刪除' || busy} onClick={() => { setBusy(true); onOk() }}>{busy ? '清除中…' : '清除'}</button></>}>
       <p>將永久刪除「{e.name}」開始日期（{e.start}）<b>之前</b>的銷售單、預購收件資料、庫存調整與零錢紀錄。</p>
-      <p className="muted">初始庫存、商品、價格、營業時間、耗材準備數量都保留；開始日當天以後的資料不會刪。刪完庫存回到初始數量，報表也不再計算測試單。</p>
+      <p className="muted">初始庫存、商品、價格、營業時間、耗材準備數量都保留；開始日當天以後的資料不會刪。刪完庫存回到初始數量，報表也不再計算測試單，每台裝置的客人編號回到客人1（還沒結帳、有品項的卡片保留）。</p>
       <label>確定請輸入「刪除」<input value={w} onChange={(x) => setW(x.target.value)} placeholder="刪除" /></label>
     </Modal>
   )

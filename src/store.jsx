@@ -182,13 +182,14 @@ let cartSeq = 0
 const newCart = (name) => ({ id: Date.now().toString(36) + (cartSeq++), name, lines: [], discount: null, refOrderId: null })
 
 export function CartProvider({ children }) {
-  const { shopId } = useShop()
+  const { shopId, event } = useShop()
   const key = `carts:${shopId}`
+  const clearedAt = event?.testClearedAt || 0
   // 客人編號：每台裝置每天從 1 開始，一直往上加，結帳後不會往回補
   const counter = useRef({ day: today(), n: 0 })
   const takeName = () => {
     const d = today()
-    if (counter.current.day !== d) counter.current = { day: d, n: 0 }
+    if (counter.current.day !== d) counter.current = { ...counter.current, day: d, n: 0 }
     counter.current.n += 1
     return '客人' + counter.current.n
   }
@@ -199,7 +200,7 @@ export function CartProvider({ children }) {
   // 換日：清掉空的卡片、編號從 1 重新開始；還有品項沒結帳的卡片保留
   const rollDay = (cs) => {
     if (counter.current.day === today()) return cs
-    counter.current = { day: today(), n: 0 }
+    counter.current = { ...counter.current, day: today(), n: 0 }
     const kept = cs.filter((c) => c.lines.length)
     return kept.length ? kept : [newCart(takeName())]
   }
@@ -221,6 +222,17 @@ export function CartProvider({ children }) {
     if (!ready) return
     try { localStorage.setItem(key, JSON.stringify({ carts, active, counter: counter.current })) } catch { /* 忽略 */ }
   }, [carts, active, key, ready])
+  // 清除測試資料後（場次的 testClearedAt 變新），每台裝置的客人編號都回到 1；
+  // 還有品項的卡片保留（例：開展前先點好的沖泡耗用），依序重新編成客人1、客人2…
+  useEffect(() => {
+    if (!ready || !clearedAt || (counter.current.resetAt || 0) >= clearedAt) return
+    setCarts((cs) => {
+      const kept = cs.filter((c) => c.lines.length).map((c, i) => ({ ...c, name: '客人' + (i + 1) }))
+      counter.current = { day: today(), n: kept.length, resetAt: clearedAt }
+      return kept.length ? kept : [newCart(takeName())]
+    })
+    setActive(0)
+  }, [ready, clearedAt])
   // App 一直開著跨過午夜，或隔天從背景切回來時也會換日
   useEffect(() => {
     const check = () => setCarts((cs) => { const r = rollDay(cs); if (r !== cs) setActive(0); return r })
