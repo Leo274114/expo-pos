@@ -23,6 +23,8 @@ export default function Cash() {
   if (!s.eventId) return <div className="page"><div className="warn">請先建立展覽場次。</div></div>
 
   const open = s.cashCounts[`${day}_open`]
+  // 今天還沒點開店零用金：先帶入最近一次的點算（前一天收攤優先），確認後按儲存
+  const prev = !open && Object.values(s.cashCounts).filter((x) => x.day < day).sort((a, b) => (a.day + (a.kind === 'close' ? 1 : 0)).localeCompare(b.day + (b.kind === 'close' ? 1 : 0)) || a.ts - b.ts).pop()
   const close = s.cashCounts[`${day}_close`]
   const openTotal = open ? countTotal(open.counts) : 0
   const e = expectedCash(s.orders, day, openTotal, s.cashMoves)
@@ -54,7 +56,8 @@ export default function Cash() {
       <div className="row gap toolbar"><DaySelect event={s.event} value={day} onChange={setDay} /></div>
       {s.settings.cashCount ? (
         <div className="grid2">
-          <CountForm key={'o' + day + (open?.ts || '')} title="開店零用金" data={open} denoms={denomsFor(s.settings)} onSave={(c) => saveCount('open', c)} />
+          <CountForm key={'o' + day + (open?.ts || '') + (prev?.ts || '')} title="開店零用金" data={open} prefill={prev}
+            denoms={denomsFor(s.settings)} onSave={(c) => saveCount('open', c)} />
           <CountForm key={'c' + day + (close?.ts || '')} title="收攤點算" data={close} denoms={denomsFor(s.settings)} onSave={(c) => saveCount('close', c)} />
         </div>
       ) : <p className="muted">零錢數量管理已關閉，只計算現金總額。</p>}
@@ -99,12 +102,13 @@ export default function Cash() {
   )
 }
 
-function CountForm({ title, data, denoms, onSave }) {
-  const [c, setC] = useState(() => ({ ...(data?.counts || {}) }))
+function CountForm({ title, data, prefill, denoms, onSave }) {
+  const [c, setC] = useState(() => ({ ...(data?.counts || prefill?.counts || {}) }))
   const total = countTotal(c)
   return (
     <div className="card count">
-      <div className="row between"><h4>{title}</h4>{data && <span className="muted">已存 {timeOf(data.ts)}</span>}</div>
+      <div className="row between"><h4>{title}</h4>{data ? <span className="muted">已存 {timeOf(data.ts)}</span>
+        : prefill && <span className="hint small">已帶入 {prefill.day.slice(5).replace('-', '/')} {prefill.kind === 'close' ? '收攤' : '開店'}的數量，確認後按儲存</span>}</div>
       {denoms.map((d) => (
         <div key={d} className="denom">
           <span className="dlabel">{d >= 100 ? `${d} 元鈔` : `${d} 元`}</span>

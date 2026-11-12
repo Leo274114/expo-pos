@@ -620,7 +620,7 @@ function EventsTab() {
     setTimeout(loadExpos, 800)
   }
 
-  // 清除測試資料：只刪目前場次「開始日期之前」的單據、收件資料、庫存調整、零錢紀錄
+  // 清除測試資料：只刪目前場次「開始日期之前」的單據、收件資料、庫存調整、現金調整（零錢點算保留）
   const testData = (e) => {
     if (e.id !== s.eventId || !e.start) return null
     const before = (ts) => ts && dayOf(ts) < e.start
@@ -630,7 +630,8 @@ function EventsTab() {
       orders,
       shipping: Object.keys(s.shipping || {}).filter((id) => ids.has(id) || before(s.shipping[id]?.ts)),
       adjustments: s.adjustments.filter((a) => before(a.ts)),
-      cashCounts: Object.entries(s.cashCounts || {}).filter(([, c]) => (c.day ? c.day < e.start : before(c.ts))).map(([id]) => id),
+      // 零錢點算的數量保留（開店零用金常在開展前一晚就點好），只刪現金調整
+      cashCounts: [],
       cashMoves: s.cashMoves.filter((m) => (m.day ? m.day < e.start : before(m.ts)))
     }
   }
@@ -727,7 +728,7 @@ function EventsTab() {
         return t && (
           <div className="card test-clear-card">
             <h4>清除測試資料<Help>{HELP.clearTest}</Help></h4>
-            <p className="muted">目前場次「{e.name}」開始日期（{e.start}）之前：{n ? `${t.orders.length} 筆單據、${t.adjustments.length} 筆庫存調整、${t.cashCounts.length + t.cashMoves.length} 筆零錢紀錄。` : '沒有資料。'}清除後庫存回到初始數量。</p>
+            <p className="muted">目前場次「{e.name}」開始日期（{e.start}）之前：{n ? `${t.orders.length} 筆單據、${t.adjustments.length} 筆庫存調整、${t.cashMoves.length} 筆現金調整。` : '沒有資料。'}清除後庫存回到初始數量。</p>
             <button className="danger" disabled={!n} onClick={() => setClearAsk(e)}>清除開始日之前的測試資料</button>
           </div>
         )
@@ -782,8 +783,8 @@ function ClearTestModal({ e, onClose, onOk }) {
   return (
     <Modal title="清除測試資料" onClose={onClose}
       footer={<><button onClick={onClose}>取消</button><button className="danger" disabled={w !== '刪除' || busy} onClick={() => { setBusy(true); onOk() }}>{busy ? '清除中…' : '清除'}</button></>}>
-      <p>將永久刪除「{e.name}」開始日期（{e.start}）<b>之前</b>的銷售單、預購收件資料、庫存調整與零錢紀錄。</p>
-      <p className="muted">初始庫存、商品、價格、營業時間、耗材準備數量都保留；開始日當天以後的資料不會刪。刪完庫存回到初始數量，報表也不再計算測試單，每台裝置的客人編號回到客人1（還沒結帳、有品項的卡片保留）。</p>
+      <p>將永久刪除「{e.name}」開始日期（{e.start}）<b>之前</b>的銷售單、預購收件資料、庫存調整與現金調整。</p>
+      <p className="muted">初始庫存、商品、價格、營業時間、耗材準備數量、零錢點算的數量都保留；開始日當天以後的資料不會刪。刪完庫存回到初始數量，報表也不再計算測試單，每台裝置的客人編號回到客人1（還沒結帳、有品項的卡片保留）。</p>
       <label>確定請輸入「刪除」<input value={w} onChange={(x) => setW(x.target.value)} placeholder="刪除" /></label>
     </Modal>
   )
