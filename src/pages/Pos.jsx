@@ -409,7 +409,7 @@ export default function Pos() {
                       </div>
                       <button className={'cl-price' + (l.price !== l.listPrice && !l.ret ? ' changed' : '')} disabled={l.ret} onClick={() => setPriceEdit(l)}>
                         {l.ret ? '-' : ''}{fmt(l.price * l.qty)}
-                        {l.price !== l.listPrice && !l.ret && <small>{l.reason || '特價'}</small>}
+                        {l.price !== l.listPrice && !l.ret ? <small>{l.reason || '特價'}</small> : !l.ret && <small className="edit-hint">改價／贈送</small>}
                       </button>
                       <button className="icon trash" onClick={() => removeLine(c, l)} aria-label="刪除"><Icon name="trash" size={20} /></button>
                     </div>
@@ -488,7 +488,16 @@ export default function Pos() {
       {qtyEdit && <QtyModal line={qtyEdit.l} max={maxQtyOf(qtyEdit.l)} onClose={() => setQtyEdit(null)}
         onSave={(n) => { setQty(qtyEdit.c, qtyEdit.l, n); setQtyEdit(null) }} />}
       {priceEdit && <PriceModal line={priceEdit} onClose={() => setPriceEdit(null)}
-        onSave={(price, reason) => { const owner = cs.carts.find((c) => c.lines.some((l) => l.key === priceEdit.key)); if (owner) updateLines((ls) => ls.map((l) => (l.key === priceEdit.key ? { ...l, price, reason } : l)), owner.id); setPriceEdit(null) }} />}
+        onSave={({ price, reason, giftQty }) => {
+          const owner = cs.carts.find((c) => c.lines.some((l) => l.key === priceEdit.key))
+          if (owner) updateLines((ls) => ls.flatMap((l) => {
+            if (l.key !== priceEdit.key) return [l]
+            // 只送其中幾個：拆成「照原價」和「贈送 $0」兩行
+            if (giftQty && giftQty < l.qty) return [{ ...l, qty: l.qty - giftQty }, { ...l, key: lineKey(), qty: giftQty, price: 0, reason: '贈送' }]
+            return [{ ...l, price, reason }]
+          }), owner.id)
+          setPriceEdit(null)
+        }} />}
       {discountOpen && <DiscountModal cart={cart} subtotal={t.subtotal} onClose={() => setDiscountOpen(false)}
         onSave={(d) => { cs.update(cart.id, (c) => ({ ...c, discount: d })); setDiscountOpen(false) }} />}
       {checkout && <Checkout cart={cart} onClose={() => setCheckout(false)} onDone={() => { setCheckout(false); setCartOpen(false); cs.remove(cart.id) }} />}
@@ -717,22 +726,69 @@ function QtyModal({ line, max, onClose, onSave }) {
   )
 }
 
+// 改價：贈送（$0）、每個減多少、直接改單價；數量 2 個以上可以只送其中幾個（拆成另一行）
 function PriceModal({ line, onClose, onSave }) {
+  const list = line.listPrice
+  const [mode, setMode] = useState(line.reason === '贈送' ? 'gift' : 'off')
+  const [off, setOff] = useState(line.price < list && line.reason !== '贈送' ? String(list - line.price) : '')
   const [v, setV] = useState(String(line.price))
-  const [reason, setReason] = useState(line.reason || '')
+  const [giftQty, setGiftQty] = useState(line.qty)
+  const [reason, setReason] = useState(line.reason && line.reason !== '贈送' ? line.reason : '')
+  const unit = mode === 'gift' ? 0 : mode === 'off' ? Math.max(0, list - (Number(off) || 0)) : Math.max(0, Number(v) || 0)
+  const n = mode === 'gift' ? Math.min(line.qty, Math.max(1, giftQty)) : line.qty
+  const newTotal = mode === 'gift' ? (line.qty - n) * line.price : unit * line.qty
+  const save = () => {
+    if (mode === 'gift') return onSave({ price: 0, reason: '贈送', giftQty: n })
+    onSave({ price: unit, reason: reason || (unit < list ? (mode === 'off' ? `減 ${fmt(list - unit)}` : '特價') : '') })
+  }
   return (
-    <Modal title={`改價：${line.name}`} onClose={onClose}
+    <Modal title={line.name} onClose={onClose}
       footer={<>
-        <button onClick={() => onSave(line.listPrice, '')}>恢復定價 {fmt(line.listPrice)}</button>
-        <button className="primary" onClick={() => onSave(Math.max(0, Number(v) || 0), reason)}>確定</button>
+        <button onClick={() => onSave({ price: list, reason: '' })}>恢復定價 {fmt(list)}</button>
+        <button className="primary" onClick={save}>確定</button>
       </>}>
-      <label>單價（定價 {fmt(line.listPrice)}）
-        <input className="num big" inputMode="numeric" autoFocus value={v} onChange={(e) => setV(e.target.value.replace(/[^\d]/g, ''))} />
-      </label>
-      <div className="chips">
-        {['熟客', '最後一包', '特價', '員工'].map((r) => <button key={r} className={'chip' + (reason === r ? ' on' : '')} onClick={() => setReason(reason === r ? '' : r)}>{r}</button>)}
+      <div className="seg">
+        <button className={mode === 'gift' ? 'on' : ''} onClick={() => setMode('gift')}>贈送</button>
+        <button className={mode === 'off' ? 'on' : ''} onClick={() => setMode('off')}>減多少錢</button>
+        <button className={mode === 'set' ? 'on' : ''} onClick={() => setMode('set')}>改單價</button>
       </div>
-      <label>原因（選填）<input value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+      {mode === 'gift' && (
+        line.qty > 1 ? (
+          <label>送幾個（共 {line.qty} 個）
+            <div className="row gap">
+              <button onClick={() => setGiftQty(Math.max(1, n - 1))}><Icon name="minus" size={18} /></button>
+              <span className="big-text num">{n}</span>
+              <button onClick={() => setGiftQty(Math.min(line.qty, n + 1))}><Icon name="plus" size={18} /></button>
+            </div>
+          </label>
+        ) : <p className="big-text">這一項免費送給客人（$0）</p>
+      )}
+      {mode === 'off' && (
+        <>
+          <label>每個減多少錢（定價 {fmt(list)}）
+            <input className="num big" inputMode="numeric" autoFocus value={off} placeholder="0" onChange={(e) => setOff(e.target.value.replace(/[^\d]/g, ''))} />
+          </label>
+          <div className="chips">{[20, 50, 100, 200].map((x) => <button key={x} className={'chip' + (Number(off) === x ? ' on' : '')} onClick={() => setOff(String(x))}>減 {x}</button>)}</div>
+        </>
+      )}
+      {mode === 'set' && (
+        <label>單價（定價 {fmt(list)}）
+          <input className="num big" inputMode="numeric" autoFocus value={v} onChange={(e) => setV(e.target.value.replace(/[^\d]/g, ''))} />
+        </label>
+      )}
+      {mode !== 'gift' && (
+        <>
+          <div className="chips">
+            {['熟客', '最後一包', '特價', '員工'].map((r) => <button key={r} className={'chip' + (reason === r ? ' on' : '')} onClick={() => setReason(reason === r ? '' : r)}>{r}</button>)}
+          </div>
+          <label>原因（選填）<input value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+        </>
+      )}
+      <p className="price-preview">
+        {mode === 'gift'
+          ? <>送 {n} 個（價值 {fmt(list * n)}）{line.qty > n ? `，另外 ${line.qty - n} 個照 ${fmt(line.price)} 計` : ''}</>
+          : <>這一項 {line.qty} 個：<b>{fmt(newTotal)}</b>{newTotal !== list * line.qty && <span className="muted">（原 {fmt(list * line.qty)}，省 {fmt(list * line.qty - newTotal)}）</span>}</>}
+      </p>
     </Modal>
   )
 }

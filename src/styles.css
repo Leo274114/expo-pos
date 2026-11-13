@@ -687,3 +687,6 @@ input.need { border-color: var(--cherry) !important; }
 .award-tag { font-style: normal; font-size: 12px; font-weight: 700; color: #a8650a; background: #fff1dc; border: 1px solid #f3c98f; border-radius: 6px; padding: 0 5px; margin-bottom: 2px; align-self: flex-start; }
 .award-select { min-height: 40px; min-width: 92px; font-size: 15px; }
 .pbtn .award-tag { display: inline-block; margin: 0 0 2px; }
+
+.cl-price small.edit-hint { background: none; color: var(--muted); font-weight: 500; text-decoration: underline dotted; }
+.price-preview { margin-top: 12px; padding: 10px 12px; background: var(--honey-soft); border-radius: 10px; font-size: 16px; }
