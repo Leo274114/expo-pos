@@ -690,3 +690,13 @@ input.need { border-color: var(--cherry) !important; }
 
 .cl-price small.edit-hint { background: none; color: var(--muted); font-weight: 500; text-decoration: underline dotted; }
 .price-preview { margin-top: 12px; padding: 10px 12px; background: var(--honey-soft); border-radius: 10px; font-size: 16px; }
+
+.an-chip.no-weight { opacity: 0.6; border-style: dashed; }
+.an-chip.no-weight small { margin-left: 4px; font-size: 11px; color: var(--muted); }
+/* 各品項銷售：表頭置頂（表格滑過就跟著離開）。不用 table-wrap 的橫向捲動，否則置頂失效 */
+.sticky-head table { width: 100%; }
+.sticky-head thead th { position: sticky; top: var(--stick-top, 50px); z-index: 3; background: var(--surface); box-shadow: 0 1px 0 var(--line); }
+@media (max-width: 600px) {
+  .sticky-head th, .sticky-head td { padding-left: 4px; padding-right: 4px; font-size: 13px; }
+  .sticky-head td:first-child { white-space: normal; overflow-wrap: anywhere; min-width: 120px; }
+}

@@ -10,12 +10,14 @@ import CountUp from '../components/CountUp.jsx'
 import Icon from '../components/Icon.jsx'
 import { sortCats } from '../lib/template.js'
 import Help from '../components/Help.jsx'
+import useStickTop from '../components/useStickTop.js'
 import { HELP } from '../lib/help.js'
 import { supplyRows } from '../components/Supplies.jsx'
 
 export default function Summary() {
   const s = useShop()
   const ui = useUi()
+  useStickTop()
   const [day, setDay] = useState(today())
   const [scope, setScope] = useState('day')
   if (!s.eventId) return <div className="page"><div className="warn">請先建立展覽場次。</div></div>
@@ -118,7 +120,7 @@ export default function Summary() {
             <button className={scope === 'event' ? 'on' : ''} onClick={() => setScope('event')}>整個展期</button>
           </div>
         </div>
-        <div className="table-wrap">
+        <div className="sticky-head">
           <table>
             <thead><tr><th>品項</th><th>銷售</th><th>預購</th><th>退回</th><th>贈與</th><th>沖泡</th><th>金額</th></tr></thead>
             <tbody>

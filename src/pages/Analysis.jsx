@@ -31,6 +31,13 @@ export default function Analysis() {
     day, open, close, soldOut, stockInit: s.stockInit, mode
   }), [s.orders, s.skus, s.productById, s.optionLists, day, open, close, soldOut, s.stockInit, mode])
 
+  // 公克模式下，沒有重量選項的品項（例：果皮茶、苦茶油）也列出來，點一下切到「件數」比較
+  const qtySeries = useMemo(() => (mode === 'grams' ? buildSeries({
+    orders: s.orders, skus: s.skus, productById: s.productById, optionLists: s.optionLists,
+    day, open, close, soldOut, stockInit: s.stockInit, mode: 'qty'
+  }) : []), [s.orders, s.skus, s.productById, s.optionLists, day, open, close, soldOut, s.stockInit, mode])
+  const noWeight = qtySeries.filter((x) => !series.some((y) => y.key === x.key))
+
   const ranked = [...series].sort((a, b) => b.perHour - a.perHour)
   const topKeys = ranked.filter((x) => x.total > 0).slice(0, 5).map((x) => x.key)
   const selected = (sel || topKeys).filter((k) => series.some((x) => x.key === k))
@@ -54,6 +61,7 @@ export default function Analysis() {
 
   const byCat = {}
   for (const x of series) (byCat[x.category] ||= []).push(x)
+  for (const x of noWeight) (byCat[x.category] ||= []).push({ ...x, noWeight: true })
   const cats = sortCats(Object.keys(byCat), s.settings.catOrder)
   const shownRows = ranked.filter((x) => selected.includes(x.key))
   const unitOf = (x) => (mode === 'grams' ? '' : x.unit)
@@ -80,7 +88,7 @@ export default function Analysis() {
             {!h.set && <>・<Link to="/admin?tab=2">設定營業時間</Link></>}
           </span>
         </div>
-        {series.length === 0 ? (
+        {series.length === 0 && !noWeight.length ? (
           <p className="muted">這一天還沒有可以比較的品項{mode === 'grams' ? '（「公克」只比較有重量選項的商品，可切換「件數」）' : ''}。</p>
         ) : (
           <>
@@ -94,6 +102,14 @@ export default function Analysis() {
                 <span className="chip-label">{c}</span>
                 {byCat[c].map((x) => {
                   const on = selected.includes(x.key)
+                  if (x.noWeight) {
+                    return (
+                      <button key={x.key} className="an-chip no-weight" title="沒有重量選項，切到「件數」比較"
+                        onClick={() => { setMode('qty'); setSel([...new Set([...selected, x.key])].slice(-MAX_LINES)) }}>
+                        {x.name.replace(c + '・', '')}<small>件數</small>
+                      </button>
+                    )
+                  }
                   return (
                     <button key={x.key} className={'an-chip' + (on ? ' on' : '')} onClick={() => toggle(x.key)} aria-pressed={on}>
                       <i style={{ background: colorOf(x.key) }} />{x.name.replace(c + '・', '')}

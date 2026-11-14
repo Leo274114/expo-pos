@@ -8,6 +8,7 @@ import BarChart from '../components/BarChart.jsx'
 import CountUp from '../components/CountUp.jsx'
 import Icon from '../components/Icon.jsx'
 import Help from '../components/Help.jsx'
+import useStickTop from '../components/useStickTop.js'
 import { HELP } from '../lib/help.js'
 
 // 浩子總覽：各攤位的銷售統計（讀不到庫存與宅配收件資料）
@@ -253,6 +254,7 @@ function PurgeExpired({ shops, onDone }) {
 }
 
 function ShopDetail({ shop, eventId, onEvent, onClose }) {
+  useStickTop()
   const box = useRef(null)
   // 打開或換攤位時捲到明細，不然在畫面外看起來像沒反應
   useEffect(() => { setTimeout(() => box.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }, [shop?.id])
@@ -323,7 +325,7 @@ function ShopDetail({ shop, eventId, onEvent, onClose }) {
           </div>
           <div className="card">
             <h4>各品項銷售（整個場次）</h4>
-            <div className="table-wrap">
+            <div className="sticky-head">
               <table>
                 <thead><tr><th>品項</th><th>銷售</th><th>預購</th><th>退回</th><th>贈與</th><th>金額</th></tr></thead>
                 <tbody>

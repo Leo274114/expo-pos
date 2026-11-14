@@ -122,7 +122,7 @@ export function SuppliesTab() {
           <UnitPicker value={unit} onChange={setUnit} />
           <button onClick={add}>新增</button>
         </div>
-        <p className="muted small">單位可選條、包、個、盒、張；選「自訂…」可以自己打。</p>
+        <p className="muted small">單位可選條、包、個、盒、張、桶、台；選「自訂…」可以自己打。</p>
       </div>
     </div>
   )

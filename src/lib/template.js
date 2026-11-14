@@ -74,4 +74,4 @@ export const DEFAULT_SUPPLIES = [
   { id: 'filter', name: '濾紙', unit: '包' },
   { id: 'bag', name: '手提袋', unit: '個' }
 ]
-export const SUPPLY_UNITS = ['條', '包', '個', '盒', '張']
+export const SUPPLY_UNITS = ['條', '包', '個', '盒', '張', '桶', '台']
