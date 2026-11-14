@@ -93,7 +93,7 @@ export default function Hq() {
             ))}
           </div>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap scroll-head">
           <table className="hq-table">
             <thead><tr><th>攤位</th><th>最後活動</th><th>開店清單</th><th>目前場次</th><th>營業額</th><th>客人數<div className="muted small">{{ day: '今天', event: '本場次', all: '全部' }[scope]}</div></th><th>帳號</th><th></th></tr></thead>
             <tbody>
@@ -221,7 +221,7 @@ function PurgeExpired({ shops, onDone }) {
       <h4>清除逾期資料<Help>{HELP.hqPurge}</Help></h4>
       {!rows.length ? <p className="muted">目前沒有逾期的場次（展覽結束 14 天後才會出現在這裡）。</p> : (
         <>
-          <div className="table-wrap">
+          <div className="table-wrap scroll-head">
             <table>
               <thead><tr><th></th><th>攤位</th><th>場次</th><th>結束日</th><th>逾期</th><th>單據</th><th>攤商已下載</th><th>未出貨預購</th></tr></thead>
               <tbody>

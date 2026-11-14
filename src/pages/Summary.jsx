@@ -154,7 +154,7 @@ export default function Summary() {
 
       <div className="card">
         <h4>完售紀錄<Help>{HELP.soldOut}</Help></h4>
-        <div className="table-wrap">
+        <div className="table-wrap scroll-head">
           <table className="soldout-table">
             <thead><tr><th>品項</th><th>完售日期</th><th>完售時間</th><th>當天第一筆後</th><th>賣出</th></tr></thead>
             <tbody>

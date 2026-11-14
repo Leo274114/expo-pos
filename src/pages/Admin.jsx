@@ -377,7 +377,7 @@ function SkuTable({ product, skus, fresh = [] }) {
   }
   if (!skus.length) return <p className="muted">還沒有組合。</p>
   return (
-    <div className="table-wrap">
+    <div className="table-wrap scroll-head">
       <table className="sku-table">
         <thead>
           <tr><th className="sku-sticky">組合</th>{showAward && <th>獎項<Help>{HELP.award}</Help></th>}<th>定價</th><th>活動價<Help>{HELP.promoPrice}</Help></th>{showStock && <><th>初始庫存<Help>{HELP.initStock}</Help></th><th>目前</th></>}<th>組成<Help>{HELP.components}</Help></th><th>啟用</th><th></th></tr>

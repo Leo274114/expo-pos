@@ -78,7 +78,7 @@ export function SuppliesTab() {
         <h4>{s.event?.name}：耗材準備與剩餘<Help>{HELP.supplies}</Help></h4>
         <p className="muted small">非必填。展前填「準備」，展覽最後一天收攤後填「剩餘」，系統自動算出本次用量。</p>
         <p className="muted small">「上次用量」來自上一場的紀錄；上一場被清除（展覽結束 14 天後）就不再顯示，請先下載 Excel，裡面的「耗材」工作表有完整數字。</p>
-        <div className="table-wrap">
+        <div className="table-wrap scroll-head">
           <table className="supply-table">
             <thead><tr><th>耗材</th><th>單位</th><th>展前準備</th><th>展後剩餘</th><th>本次用量</th>{prev && <th>上次用量<br /><span className="muted small">{prev.event.name}</span></th>}</tr></thead>
             <tbody>
@@ -166,7 +166,7 @@ export function DailyTable({ readOnly = false }) {
     <div className="card">
       <h4>每日用量</h4>
       {!readOnly && <p className="muted small">勾「每天記錄」的耗材（例：水）在這裡填每天用多少；每天收攤點零錢時也會提醒。</p>}
-      <div className="table-wrap">
+      <div className="table-wrap scroll-head">
         <table className="supply-table daily-table">
           <thead><tr><th>耗材</th>{days.map((d) => <th key={d}>{d.slice(5).replace('-', '/')}</th>)}<th>合計</th></tr></thead>
           <tbody>
