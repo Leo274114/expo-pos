@@ -135,7 +135,11 @@ export function eventSheets(s) {
 
   // 完售紀錄
   add('完售紀錄', soldOutTimes(s.stockInit, orders, s.adjustments).map((x) => ({ 品項: s.labelOf(x.skuId), 完售日期: x.day, 完售時間: timeOf(x.ts), 賣出數量: x.sold })))
-  add('耗材', supplyRows(s.supplyItems, s.supplies).map((x) => ({ 耗材: x.name, 單位: x.unit, 展前準備: x.prep ?? '', 展後剩餘: x.left ?? '', 本次用量: x.used ?? '' })))
+  const supDays = daysBetween(s.event?.start, s.event?.end)
+  add('耗材', supplyRows(s.supplyItems, s.supplies).map((x) => ({
+    耗材: x.name, 單位: x.unit, 展前準備: x.prep ?? '', 展後剩餘: x.left ?? '', 本次用量: x.used ?? '',
+    ...(x.isDaily ? Object.fromEntries([...supDays.map((d) => [`${d.slice(5).replace('-', '/')} 用量`, x.daily[d] ?? '']), ['每日用量合計', x.dailyTotal ?? '']]) : {})
+  })))
 
   // 6. 零錢對帳
   const cashRows = []

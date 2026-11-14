@@ -7,7 +7,7 @@ import { CASH_REASONS } from '../lib/template.js'
 import DaySelect from '../components/DaySelect.jsx'
 import Help from '../components/Help.jsx'
 import { HELP } from '../lib/help.js'
-import { SupplyLeftReminder } from '../components/Supplies.jsx'
+import { SupplyLeftReminder, DailyUsage } from '../components/Supplies.jsx'
 import DriveBackup from '../components/DriveBackup.jsx'
 import { hasDriveToken, uploadEventToDrive } from '../lib/gdrive.js'
 
@@ -62,6 +62,7 @@ export default function Cash() {
         </div>
       ) : <p className="muted">零錢數量管理已關閉，只計算現金總額。</p>}
 
+      <DailyUsage day={day} />
       {s.settings.cashCount && close && <SupplyLeftReminder day={day} />}
       {(close || !s.settings.cashCount) && (
         <div className="card">

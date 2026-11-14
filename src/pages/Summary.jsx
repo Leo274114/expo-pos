@@ -12,7 +12,7 @@ import { sortCats } from '../lib/template.js'
 import Help from '../components/Help.jsx'
 import useStickTop from '../components/useStickTop.js'
 import { HELP } from '../lib/help.js'
-import { supplyRows } from '../components/Supplies.jsx'
+import { supplyRows, DailyTable } from '../components/Supplies.jsx'
 
 export default function Summary() {
   const s = useShop()
@@ -194,6 +194,7 @@ export default function Summary() {
         </div>
         <p className="muted small">在「管理 → 耗材」填寫；非必填。</p>
       </div>
+      <DailyTable readOnly />
     </div>
   )
 }

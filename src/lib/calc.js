@@ -342,12 +342,16 @@ export function supplyRows(items = [], records = {}) {
   const num = (v) => (v === '' || v == null ? null : Number(v))
   const ids = new Set(items.map((x) => x.id))
   // 關掉（active === false）的耗材不列；但這個場次已經有填數字的仍列出，資料不會不見
-  const has = (r) => r && (r.prep != null && r.prep !== '' || r.left != null && r.left !== '')
-  const rows = items.filter((it) => it.active !== false || has(records[it.id])).map((it) => ({ ...(records[it.id] || {}), id: it.id, name: it.name, unit: it.unit }))
+  const has = (r) => r && (r.prep != null && r.prep !== '' || r.left != null && r.left !== '' || Object.values(r.daily || {}).some((v) => v != null))
+  const rows = items.filter((it) => it.active !== false || has(records[it.id])).map((it) => ({ ...(records[it.id] || {}), id: it.id, name: it.name, unit: it.unit, isDaily: !!it.daily }))
   // 已從清單移除、但這個場次有紀錄的耗材也列出來
   for (const [id, x] of Object.entries(records || {})) if (!ids.has(id)) rows.push({ ...x, id })
   return rows.map((x) => {
     const prep = num(x.prep), left = num(x.left)
-    return { id: x.id, name: x.name, unit: x.unit || '', prep, left, used: prep != null && left != null ? prep - left : null }
+    // 每天記錄的耗材（例：水）：每天用量與合計
+    const daily = Object.fromEntries(Object.entries(x.daily || {}).filter(([, v]) => v != null && v !== '').map(([d, v]) => [d, Number(v)]))
+    const dailyVals = Object.values(daily)
+    const dailyTotal = dailyVals.length ? dailyVals.reduce((a, b) => a + b, 0) : null
+    return { id: x.id, name: x.name, unit: x.unit || '', prep, left, used: prep != null && left != null ? prep - left : null, isDaily: !!x.isDaily || dailyVals.length > 0, daily, dailyTotal }
   })
 }

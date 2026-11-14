@@ -700,3 +700,6 @@ input.need { border-color: var(--cherry) !important; }
   .sticky-head th, .sticky-head td { padding-left: 4px; padding-right: 4px; font-size: 13px; }
   .sticky-head td:first-child { white-space: normal; overflow-wrap: anywhere; min-width: 120px; }
 }
+
+.daily-check { flex: 0 0 auto; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.daily-table input.num { width: 64px; }

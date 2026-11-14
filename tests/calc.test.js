@@ -152,8 +152,16 @@ test('耗材：用量 = 準備 − 剩餘，未填不算；已移除的耗材仍
   const rec = { cup: { prep: 10, left: 3 }, bag: { prep: 50 }, old: { name: '攪拌棒', unit: '包', prep: 2, left: 0 } }
   const r = supplyRows(items, rec)
   assert.equal(r.length, 3)
-  assert.deepEqual(r[0], { id: 'cup', name: '試飲杯', unit: '條', prep: 10, left: 3, used: 7 })
+  assert.deepEqual(r[0], { id: 'cup', name: '試飲杯', unit: '條', prep: 10, left: 3, used: 7, isDaily: false, daily: {}, dailyTotal: null })
   assert.equal(r[1].used, null)
   assert.equal(r[2].name, '攪拌棒'); assert.equal(r[2].used, 2)
   assert.deepEqual(supplyRows(items, {}).map((x) => x.used), [null, null])
+})
+
+test('耗材每日用量：每天加總，沒填的不算', () => {
+  const items = [{ id: 'water', name: '水', unit: '桶', daily: true }]
+  const r = supplyRows(items, { water: { daily: { '2026-11-13': 3, '2026-11-14': 2, '2026-11-15': null } } })
+  assert.equal(r[0].isDaily, true)
+  assert.deepEqual(r[0].daily, { '2026-11-13': 3, '2026-11-14': 2 })
+  assert.equal(r[0].dailyTotal, 5)
 })

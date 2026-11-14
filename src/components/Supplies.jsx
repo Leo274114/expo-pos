@@ -3,7 +3,7 @@ import { collection, doc, getDocs, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useShop, useUi, commit, deviceId } from '../store.jsx'
 import { SUPPLY_UNITS } from '../lib/template.js'
-import { supplyRows as calcSupplyRows } from '../lib/calc.js'
+import { supplyRows as calcSupplyRows, daysBetween } from '../lib/calc.js'
 import Help from './Help.jsx'
 import SortGroup from './SortGroup.jsx'
 import { Switch } from '../pages/Admin.jsx'
@@ -103,6 +103,8 @@ export function SuppliesTab() {
         </div>
       </div>
 
+      <DailyTable />
+
       <div className="card">
         <h4>耗材清單（每個場次共用）</h4>
         <p className="muted small">按住左邊 ⋮⋮ 上下拖曳換順序。右邊開關關掉＝這次不帶，清單保留，上面表格、收攤提醒、總結與 Excel 都不顯示；下次要用再打開（所有場次共用）。</p>
@@ -112,6 +114,7 @@ export function SuppliesTab() {
               {grip}
               <input defaultValue={it.name} key={it.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.name) rename(it, { name: v }) }} />
               <UnitPicker value={it.unit} onChange={(v) => v !== it.unit && rename(it, { unit: v })} />
+              <label className="check small daily-check" title="每天收攤時記錄用量（例：水）"><input type="checkbox" checked={!!it.daily} onChange={(e) => rename(it, { daily: e.target.checked })} />每天記錄</label>
               <Switch checked={it.active !== false} onChange={(v) => rename(it, { active: v })} />
               <button className="small-btn ghost" onClick={() => remove(it)}>移除</button>
             </div>
@@ -149,6 +152,63 @@ function UnitPicker({ value, onChange }) {
       {SUPPLY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
       <option value="__custom">自訂…</option>
     </select>
+  )
+}
+
+// 每天記錄的耗材：展期每一天的用量（管理 → 耗材、總結共用）
+export function DailyTable({ readOnly = false }) {
+  const s = useShop()
+  const rows = supplyRows(s).filter((r) => r.isDaily && (s.supplyItems.find((x) => x.id === r.id)?.active !== false || r.dailyTotal != null))
+  if (!rows.length) return null
+  const days = daysBetween(s.event?.start, s.event?.end)
+  const byId = Object.fromEntries(s.supplyItems.map((x) => [x.id, x]))
+  return (
+    <div className="card">
+      <h4>每日用量</h4>
+      {!readOnly && <p className="muted small">勾「每天記錄」的耗材（例：水）在這裡填每天用多少；每天收攤點零錢時也會提醒。</p>}
+      <div className="table-wrap">
+        <table className="supply-table daily-table">
+          <thead><tr><th>耗材</th>{days.map((d) => <th key={d}>{d.slice(5).replace('-', '/')}</th>)}<th>合計</th></tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{r.name}<span className="muted small">（{r.unit}）</span></td>
+                {days.map((d) => (
+                  <td key={d}>{readOnly ? (r.daily[d] ?? '—')
+                    : <NumInput value={r.daily[d]} placeholder="—" onSave={(n) => saveSupply(s, byId[r.id] || r, { daily: { [d]: n } })} />}</td>
+                ))}
+                <td className="used">{r.dailyTotal == null ? '—' : `${r.dailyTotal} ${r.unit}`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// 零錢頁：每天記錄的耗材，問今天用了多少（可以換日期補填）
+export function DailyUsage({ day }) {
+  const s = useShop()
+  const rows = supplyRows(s).filter((r) => r.isDaily && s.supplyItems.find((x) => x.id === r.id)?.active !== false)
+  if (!rows.length) return null
+  const byId = Object.fromEntries(s.supplyItems.map((x) => [x.id, x]))
+  return (
+    <div className="card supply-reminder">
+      <h4 style={{ marginTop: 0 }}>{day.slice(5).replace('-', '/')} 用了多少</h4>
+      <p className="muted small">每天記錄的耗材，填這一天的用量（非必填）。</p>
+      <table className="supply-table">
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td>{r.name}</td>
+              <td><NumInput value={r.daily[day]} placeholder="用了多少" onSave={(n) => saveSupply(s, byId[r.id] || r, { daily: { [day]: n } })} /></td>
+              <td>{r.unit}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
