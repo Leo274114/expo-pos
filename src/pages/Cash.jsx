@@ -1,11 +1,12 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { doc, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
-import { useShop, useUi, commit, deviceId } from '../store.jsx'
+import { useShop, useUi, commit, deviceId, leaveGuard } from '../store.jsx'
 import { fmt, today, countTotal, denomsFor, expectedCash, timeOf, dayOf } from '../lib/calc.js'
 import { CASH_REASONS } from '../lib/template.js'
 import DaySelect from '../components/DaySelect.jsx'
 import Help from '../components/Help.jsx'
+import Modal from '../components/Modal.jsx'
 import { HELP } from '../lib/help.js'
 import { SupplyLeftReminder, DailyUsage } from '../components/Supplies.jsx'
 import DriveBackup from '../components/DriveBackup.jsx'
@@ -20,6 +21,21 @@ export default function Cash() {
   const [amt, setAmt] = useState('')
   const [reason, setReason] = useState(CASH_REASONS[0])
   const [note, setNote] = useState('')
+  // 點了數量還沒按儲存：按鈕變亮、寫「尚未儲存」；換頁或換日期前先提醒
+  const [dirty, setDirty] = useState({})
+  const anyDirty = dirty.open || dirty.close
+  useEffect(() => {
+    leaveGuard.msg = anyDirty ? `零錢${dirty.open ? '「開店零用金」' : ''}${dirty.close ? '「收攤點算」' : ''}改過還沒儲存，要離開嗎？` : null
+  }, [anyDirty, dirty.open, dirty.close])
+  useEffect(() => () => { leaveGuard.msg = null }, [])
+  useEffect(() => {
+    if (!anyDirty) return
+    const h = (e) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', h)
+    return () => window.removeEventListener('beforeunload', h)
+  }, [anyDirty])
+  const [dayAsk, setDayAsk] = useState(null)
+  const changeDay = (d) => { if (anyDirty) setDayAsk(d); else setDay(d) }
   if (!s.eventId) return <div className="page"><div className="warn">請先建立展覽場次。</div></div>
 
   const open = s.cashCounts[`${day}_open`]
@@ -53,12 +69,12 @@ export default function Cash() {
 
   return (
     <div className="page">
-      <div className="row gap toolbar"><DaySelect event={s.event} value={day} onChange={setDay} /></div>
+      <div className="row gap toolbar"><DaySelect event={s.event} value={day} onChange={changeDay} /></div>
       {s.settings.cashCount ? (
         <div className="grid2">
           <CountForm key={'o' + day + (open?.ts || '') + (prev?.ts || '')} title="開店零用金" data={open} prefill={prev}
-            denoms={denomsFor(s.settings)} onSave={(c) => saveCount('open', c)} />
-          <CountForm key={'c' + day + (close?.ts || '')} title="收攤點算" data={close} denoms={denomsFor(s.settings)} onSave={(c) => saveCount('close', c)} />
+            denoms={denomsFor(s.settings)} onSave={(c) => saveCount('open', c)} onDirty={(v) => setDirty((d) => (d.open === v ? d : { ...d, open: v }))} />
+          <CountForm key={'c' + day + (close?.ts || '')} title="收攤點算" data={close} denoms={denomsFor(s.settings)} onSave={(c) => saveCount('close', c)} onDirty={(v) => setDirty((d) => (d.close === v ? d : { ...d, close: v }))} />
         </div>
       ) : <p className="muted">零錢數量管理已關閉，只計算現金總額。</p>}
 
@@ -72,6 +88,15 @@ export default function Cash() {
       )}
       {!s.settings.cashCount && <SupplyLeftReminder day={day} />}
 
+      {dayAsk && (
+        <Modal title="還沒儲存" onClose={() => setDayAsk(null)}
+          footer={<>
+            <button onClick={() => { setDirty({}); setDay(dayAsk); setDayAsk(null) }}>不存，換日期</button>
+            <button className="primary" onClick={() => setDayAsk(null)}>留下來儲存</button>
+          </>}>
+          <p className="big-text">{leaveGuard.msg?.replace('要離開嗎？', '要換到其他日期嗎？')}</p>
+        </Modal>
+      )}
       <div className="card recon">
         <h4>現金對帳<Help>{HELP.cashRecon}</Help></h4>
         {s.settings.cashCount && <div className="row between"><span>開店零用金</span><span>{fmt(openTotal)}</span></div>}
@@ -103,9 +128,14 @@ export default function Cash() {
   )
 }
 
-function CountForm({ title, data, prefill, denoms, onSave }) {
+function CountForm({ title, data, prefill, denoms, onSave, onDirty }) {
   const [c, setC] = useState(() => ({ ...(data?.counts || prefill?.counts || {}) }))
   const total = countTotal(c)
+  // 跟已儲存的數量不一樣（帶入的前次數量也算還沒存）
+  const norm = (x) => JSON.stringify(denoms.map((d) => Number(x?.[d]) || 0))
+  const dirty = data ? norm(c) !== norm(data.counts) : total > 0
+  useEffect(() => { onDirty?.(dirty) }, [dirty])
+  useEffect(() => () => onDirty?.(false), [])
   return (
     <div className="card count">
       <div className="row between"><h4>{title}</h4>{data ? <span className="muted">已存 {timeOf(data.ts)}</span>
@@ -120,7 +150,10 @@ function CountForm({ title, data, prefill, denoms, onSave }) {
         </div>
       ))}
       <div className="row between total"><span>合計</span><span>{fmt(total)}</span></div>
-      <button className="primary" onClick={() => onSave(Object.fromEntries(Object.entries(c).map(([k, v]) => [k, Number(v) || 0])))}>儲存</button>
+      <div className="row gap save-row">
+        <button className={'primary' + (dirty ? ' unsaved' : '')} onClick={() => onSave(Object.fromEntries(Object.entries(c).map(([k, v]) => [k, Number(v) || 0])))}>儲存</button>
+        {dirty && <span className="unsaved-note">尚未儲存</span>}
+      </div>
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { preIndex, today } from './lib/calc.js'
 import { exportEventExcel } from './lib/excel.js'
 import Modal from './components/Modal.jsx'
 import { textOn } from './lib/template.js'
-import { UiProvider, ShopProvider, CartProvider, useShop, useUi, commit } from './store.jsx'
+import { UiProvider, ShopProvider, CartProvider, useShop, useUi, commit, leaveGuard } from './store.jsx'
 import Login from './pages/Login.jsx'
 import Pos from './pages/Pos.jsx'
 import Orders from './pages/Orders.jsx'
@@ -71,6 +71,14 @@ function Shell() {
     ['/analysis', 'trend', '分析'],
     ['/shipping', 'box', '預購單', pending]
   ]
+  const nav = useNavigate()
+  const [leaveTo, setLeaveTo] = useState(null)
+  // 有沒儲存的資料（零錢頁）時，換頁前先問
+  const guard = (to) => (e) => {
+    if (!leaveGuard.msg) return
+    e.preventDefault()
+    setLeaveTo(to)
+  }
   return (
     <div className="shell" style={{ '--top-bg': s.settings.themeColor || '#183d2e', '--top-fg': textOn(s.settings.themeColor || '#183d2e') }}>
       <header className="top">
@@ -81,7 +89,7 @@ function Shell() {
             ? (s.pendingCount ? `上傳中・${s.pendingCount} 筆` : '已全部同步')
             : (s.pendingCount ? `離線中・${s.pendingCount} 筆尚未上傳` : '離線中・可照常結帳')}
         </span>
-        <Link to="/help" className="qa-link" aria-label="Q&A 說明">Q&A</Link>
+        <Link to="/help" className="qa-link" aria-label="Q&A 說明" onClick={guard('/help')}>Q&A</Link>
       </header>
       <main>
         <Routes>
@@ -99,12 +107,21 @@ function Shell() {
       <ExpiryReminder pending={pending} />
       <nav className="bottom">
         {links.map(([to, icon, label, badge]) => (
-          <NavLink key={to} to={to} end={to === '/'}>
+          <NavLink key={to} to={to} end={to === '/'} onClick={guard(to)}>
             <span className="ni"><Icon name={icon} />{badge ? <i className="dot">{badge}</i> : null}</span>
             <span>{label}</span>
           </NavLink>
         ))}
       </nav>
+      {leaveTo && (
+        <Modal title="還沒儲存" onClose={() => setLeaveTo(null)}
+          footer={<>
+            <button onClick={() => { leaveGuard.msg = null; nav(leaveTo); setLeaveTo(null) }}>不存，離開</button>
+            <button className="primary" onClick={() => setLeaveTo(null)}>留下來儲存</button>
+          </>}>
+          <p className="big-text">{leaveGuard.msg}</p>
+        </Modal>
+      )}
     </div>
   )
 }

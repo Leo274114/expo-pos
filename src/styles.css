@@ -703,3 +703,9 @@ input.need { border-color: var(--cherry) !important; }
 
 .daily-check { flex: 0 0 auto; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .daily-table input.num { width: 64px; }
+
+/* 零錢：改過還沒儲存 */
+.save-row { align-items: center; margin-top: 8px; }
+button.primary.unsaved { background: var(--amber, #F58220); border-color: var(--amber, #F58220); box-shadow: 0 0 0 4px rgba(245, 130, 32, 0.25); animation: unsavedPulse 1.6s ease-in-out infinite; }
+@keyframes unsavedPulse { 50% { box-shadow: 0 0 0 8px rgba(245, 130, 32, 0.12); } }
+.unsaved-note { color: #b85a00; font-weight: 700; }

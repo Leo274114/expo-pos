@@ -278,3 +278,6 @@ export function CartProvider({ children }) {
 
   return <CartCtx.Provider value={api}>{children}</CartCtx.Provider>
 }
+
+// 離開頁面前的提醒（零錢頁有改過沒存時設定）；App 的下方選單、Q&A 連結會先問
+export const leaveGuard = { msg: null }
