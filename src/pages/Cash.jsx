@@ -6,6 +6,7 @@ import { fmt, today, countTotal, denomsFor, expectedCash, timeOf, dayOf } from '
 import { CASH_REASONS } from '../lib/template.js'
 import DaySelect from '../components/DaySelect.jsx'
 import Help from '../components/Help.jsx'
+import Icon from '../components/Icon.jsx'
 import Modal from '../components/Modal.jsx'
 import { HELP } from '../lib/help.js'
 import { SupplyLeftReminder, DailyUsage } from '../components/Supplies.jsx'
@@ -58,6 +59,11 @@ export default function Cash() {
           .catch((e) => ui.toast('自動備份沒成功：' + e.message + '，請按「更新 Google 雲端」', { kind: 'error', ms: 7000 }))
       }, 1500)
     }
+  }
+  const delMove = (c) => {
+    const { id, ...data } = c
+    commit(writeBatch(db).delete(doc(db, s.eventPath, 'cashMoves', id)))
+    ui.toast(`已刪除現金調整 ${fmt(c.amount)}`, { ms: 6000, action: { label: '復原', onClick: () => commit(writeBatch(db).set(doc(db, s.eventPath, 'cashMoves', id), data)) } })
   }
   const addMove = () => {
     const a = Number(amt)
@@ -120,7 +126,8 @@ export default function Cash() {
           <button onClick={addMove}>新增</button>
         </div>
         {s.cashMoves.filter((c) => c.day === day).map((c) => (
-          <div key={c.id} className="line"><span>{timeOf(c.ts)}</span><b className={c.amount < 0 ? 'neg' : 'pos'}>{fmt(c.amount)}</b><span>{c.reason}{c.note ? '・' + c.note : ''}</span></div>
+          <div key={c.id} className="line"><span>{timeOf(c.ts)}</span><b className={c.amount < 0 ? 'neg' : 'pos'}>{fmt(c.amount)}</b><span>{c.reason}{c.note ? '・' + c.note : ''}</span>
+            <button className="icon trash" aria-label="刪除" onClick={() => delMove(c)}><Icon name="trash" size={18} /></button></div>
         ))}
       </div>
       {day !== dayOf(Date.now()) && <p className="muted">正在檢視 {day} 的資料</p>}

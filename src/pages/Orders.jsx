@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { doc, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useShop, useCarts, commit } from '../store.jsx'
-import { fmt, timeOf, today, returnedMap, refundUnit, TYPE_LABEL, METHOD_LABEL, PAY_TYPE_LABEL } from '../lib/calc.js'
+import { fmt, timeOf, today, returnedMap, refundUnit, TYPE_LABEL, METHOD_LABEL, PAY_TYPE_LABEL, enabledMethods } from '../lib/calc.js'
 import DaySelect from '../components/DaySelect.jsx'
 import Modal from '../components/Modal.jsx'
 
@@ -13,6 +13,7 @@ export default function Orders() {
   const [filter, setFilter] = useState('all')
   const [retFor, setRetFor] = useState(null)
   const [voidFor, setVoidFor] = useState(null)
+  const [payFor, setPayFor] = useState(null)
   const retMap = returnedMap(s.orders)
   const list = s.orders.filter((o) => o.day === day && (filter === 'all' || (filter === 'void' ? o.status === 'void' : o.type === filter)))
   const no = Object.fromEntries([...s.orders].sort((a, b) => a.ts - b.ts).map((o, i) => [o.id, i + 1]))
@@ -37,7 +38,7 @@ export default function Orders() {
       </div>
       <div className="cards">
         {list.map((o) => <OrderCard key={o.id} o={o} no={no[o.id]} refNo={no[o.refOrderId]} returned={retMap[o.id]}
-          onVoid={() => setVoidFor(o)} onReturn={() => setRetFor(o)} />)}
+          onVoid={() => setVoidFor(o)} onReturn={() => setRetFor(o)} onPay={() => setPayFor(o)} />)}
         {!list.length && <p className="muted center">這天沒有單據</p>}
       </div>
       {voidFor && (
@@ -47,12 +48,45 @@ export default function Orders() {
           <p className="muted">客人退貨請用「退換貨」，不要用作廢。</p>
         </Modal>
       )}
+      {payFor && <PayMethodModal o={payFor} no={no[payFor.id]} onClose={() => setPayFor(null)} />}
       {retFor && <ReturnModal o={retFor} returned={retMap[retFor.id] || {}} no={no[retFor.id]} onClose={() => setRetFor(null)} />}
     </div>
   )
 }
 
-export function OrderCard({ o, no, refNo, returned, onVoid, onReturn }) {
+// 改付款方式：結帳時按錯（例：LINE Pay 按成現金），改了之後現金對帳、總結、Excel 自動重算；留下修改紀錄
+function PayMethodModal({ o, no, onClose }) {
+  const s = useShop()
+  const cur = o.money?.method
+  const [to, setTo] = useState(cur)
+  const [last5, setLast5] = useState(o.money?.last5 || '')
+  const methods = [...new Set([...enabledMethods(s.settings), cur])].filter(Boolean)
+  const save = () => {
+    if (to === cur && (to !== 'transfer' || last5 === (o.money?.last5 || ''))) return onClose()
+    const money = { method: to, amount: o.money.amount }
+    // 改成現金：視為剛好收（不找零）；改成轉帳：可記帳號後五碼
+    if (to === 'cash' && cur === 'cash') Object.assign(money, { received: o.money.received, change: o.money.change })
+    if (to === 'transfer' && last5) money.last5 = last5
+    const payLog = [...(o.payLog || []), ...(to !== cur ? [{ ts: Date.now(), from: cur, to }] : [])]
+    commit(writeBatch(db).set(doc(db, s.eventPath, 'orders', o.id), { money, payLog }, { merge: true }))
+    onClose()
+  }
+  return (
+    <Modal title={`改付款方式 #${no}`} onClose={onClose}
+      footer={<><button onClick={onClose}>取消</button><button className="primary" onClick={save}>確定</button></>}>
+      <p>金額 <b>{fmt(o.money.amount)}</b>，目前記為「{METHOD_LABEL[cur]}」。改成：</p>
+      <div className="seg">
+        {methods.map((k) => <button key={k} className={to === k ? 'on' : ''} onClick={() => setTo(k)}>{METHOD_LABEL[k]}</button>)}
+      </div>
+      {to === 'transfer' && (
+        <label>帳號後五碼（選填）<input className="num" inputMode="numeric" maxLength={5} value={last5} onChange={(e) => setLast5(e.target.value.replace(/[^\d]/g, '').slice(0, 5))} /></label>
+      )}
+      <p className="muted">改了之後現金對帳的「應有現金」、總結的各付款方式金額、Excel 都會自動重算，卡片上會留下修改紀錄。</p>
+    </Modal>
+  )
+}
+
+export function OrderCard({ o, no, refNo, returned, onVoid, onReturn, onPay }) {
   const isVoid = o.status === 'void'
   const outQty = (o.items || []).filter((i) => !i.pre).reduce((a, i) => a + i.qty, 0)
   const retQty = Object.values(returned || {}).reduce((a, b) => a + b, 0)
@@ -86,12 +120,16 @@ export function OrderCard({ o, no, refNo, returned, onVoid, onReturn }) {
         {o.shippingFee > 0 && <span>運費 {fmt(o.shippingFee)}　</span>}
         {o.pre && <span>{PAY_TYPE_LABEL[o.pre.payType]}　</span>}
         {o.gift && <span>贈與：{o.gift.to}{o.gift.note ? '・' + o.gift.note : ''}　</span>}
-        {m?.method && <span>{METHOD_LABEL[m.method]}</span>}
-        {m?.received != null && m.received !== m.amount && <span>　收 {fmt(m.received)}・找 {fmt(m.change)}</span>}
+        {m?.method && <span>{METHOD_LABEL[m.method]}{m.last5 ? `（後五碼 ${m.last5}）` : ''}</span>}
+        {m?.method === 'cash' && m?.received != null && m.received !== m.amount && <span>　收 {fmt(m.received)}・找 {fmt(m.change)}</span>}
         {o.note && o.type !== 'gift' && <span>　{o.note}</span>}
       </div>
+      {(o.payLog || []).map((x, i) => (
+        <div key={i} className="muted small pay-log">{timeOf(x.ts)} 付款方式 {METHOD_LABEL[x.from] || '—'} → {METHOD_LABEL[x.to]}</div>
+      ))}
       {!isVoid && (onVoid || onReturn) && (
         <div className="row gap end">
+          {m?.method && m.amount > 0 && onPay && <button onClick={onPay}>改付款方式</button>}
           {canReturn && onReturn && <button onClick={onReturn}>退換貨</button>}
           {onVoid && <button className="danger-outline" onClick={onVoid}>作廢</button>}
         </div>

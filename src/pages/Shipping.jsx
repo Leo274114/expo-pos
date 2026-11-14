@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { doc, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useShop, useUi, commit, deviceId } from '../store.jsx'
-import { fmt, timeOf, dayOf, preIndex, PAY_TYPE_LABEL, METHOD_LABEL } from '../lib/calc.js'
+import { fmt, timeOf, dayOf, preIndex, PAY_TYPE_LABEL, METHOD_LABEL, enabledMethods } from '../lib/calc.js'
 import Modal from '../components/Modal.jsx'
 import Help from '../components/Help.jsx'
 import { HELP } from '../lib/help.js'
@@ -83,7 +83,7 @@ export default function Shipping() {
           footer={<>
             <button onClick={() => setMoney(null)}>返回</button>
             {Number(money.amount) > 0
-              ? Object.entries(METHOD_LABEL).map(([k, v]) => <button key={k} className="primary" onClick={() => submitMoney(k)}>{money.kind === 'collect' ? '收' : '退'} {v}</button>)
+              ? enabledMethods(s.settings).map((k) => <button key={k} className="primary" onClick={() => submitMoney(k)}>{money.kind === 'collect' ? '收' : '退'} {METHOD_LABEL[k]}</button>)
               : <button className="primary" onClick={() => submitMoney(null)}>確定</button>}
           </>}>
           <label>{money.kind === 'collect' ? '收款金額' : '退款金額（已收的錢）'}

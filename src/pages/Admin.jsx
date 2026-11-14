@@ -925,6 +925,8 @@ function SettingsTab() {
 
       <h4>功能開關</h4>
       <T k="cashCount">零錢數量管理（開店、收攤點各面額數量）</T>
+      <T k="payTransfer">付款方式：轉帳（結帳可選，可填帳號後五碼）</T>
+      <T k="payCard">付款方式：刷卡（只做標記，不串接刷卡機）</T>
       <T k="coin1">1 元面額</T>
       <T k="giftEnabled">贈與單</T>
       <T k="brewEnabled">沖泡耗用單</T>

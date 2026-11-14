@@ -64,10 +64,10 @@ export function eventSheets(s) {
   // 展期總覽：每天一列＋合計
   const ov = allDays.map((d) => {
     const r = summarize(orders, d)
-    return { 日期: d, 營業額: r.revenue.total, 現金: r.revenue.cash || 0, 'LINE Pay': r.revenue.linepay || 0, 客人數: r.orderCount, 折扣總額: r.discountTotal, 退貨金額: r.refundTotal, 運費收入: r.shipTotal }
+    return { 日期: d, 營業額: r.revenue.total, 現金: r.revenue.cash || 0, 'LINE Pay': r.revenue.linepay || 0, 轉帳: r.revenue.transfer || 0, 刷卡: r.revenue.card || 0, 客人數: r.orderCount, 折扣總額: r.discountTotal, 退貨金額: r.refundTotal, 運費收入: r.shipTotal }
   })
   const tot = summarize(orders)
-  ov.push({ 日期: '整個展期', 營業額: tot.revenue.total, 現金: tot.revenue.cash || 0, 'LINE Pay': tot.revenue.linepay || 0, 客人數: tot.orderCount, 折扣總額: tot.discountTotal, 退貨金額: tot.refundTotal, 運費收入: tot.shipTotal })
+  ov.push({ 日期: '整個展期', 營業額: tot.revenue.total, 現金: tot.revenue.cash || 0, 'LINE Pay': tot.revenue.linepay || 0, 轉帳: tot.revenue.transfer || 0, 刷卡: tot.revenue.card || 0, 客人數: tot.orderCount, 折扣總額: tot.discountTotal, 退貨金額: tot.refundTotal, 運費收入: tot.shipTotal })
   add('展期總覽', ov)
 
   // 每小時營業額（尖峰）：每列一個時段，每欄一天
@@ -93,7 +93,7 @@ export function eventSheets(s) {
   for (const o of orders) {
     const base = {
       單號: no[o.id], 日期: o.day, 時間: timeOf(o.ts), 類型: TYPE_LABEL[o.type] || o.type, 狀態: status(o),
-      付款方式: METHOD_LABEL[o.money?.method] || '', 本次收付: o.money?.amount || 0, 收款: o.money?.received ?? '', 找零: o.money?.change ?? '',
+      付款方式: (METHOD_LABEL[o.money?.method] || '') + (o.money?.last5 ? `（後五碼 ${o.money.last5}）` : ''), 本次收付: o.money?.amount || 0, 收款: o.money?.received ?? '', 找零: o.money?.change ?? '',
       整單折扣: o.discountAmt || 0, 運費: o.shippingFee || 0, 單據合計: o.total ?? '', 贈與對象: o.gift?.to || '', 滿額活動: (o.promos || []).map((p) => p.text + (p.count > 1 ? '×' + p.count : '')).join('、'), 備註: o.note || o.gift?.note || '',
       原單號: o.refOrderId ? no[o.refOrderId] || '' : ''
     }
@@ -117,7 +117,7 @@ export function eventSheets(s) {
   const extra = [...new Set(orders.map((o) => o.day))].filter((d) => !days.includes(d))
   add('每日營業額', [...days, ...extra].sort().map((d) => {
     const r = summarize(orders, d)
-    return { 日期: d, 現金: r.revenue.cash || 0, 'LINE Pay': r.revenue.linepay || 0, 合計: r.revenue.total, 原價總額: r.listTotal, 折扣總額: r.discountTotal, 退貨金額: r.refundTotal, 運費收入: r.shipTotal, 銷售筆數: r.orderCount }
+    return { 日期: d, 現金: r.revenue.cash || 0, 'LINE Pay': r.revenue.linepay || 0, 轉帳: r.revenue.transfer || 0, 刷卡: r.revenue.card || 0, 合計: r.revenue.total, 原價總額: r.listTotal, 折扣總額: r.discountTotal, 退貨金額: r.refundTotal, 運費收入: r.shipTotal, 銷售筆數: r.orderCount }
   }))
 
   // 4. 庫存

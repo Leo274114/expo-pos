@@ -4,6 +4,8 @@ export const ALL_DENOMS = [1000, 500, 100, 50, 10, 5, 1]
 
 export const DEFAULT_SETTINGS = {
   cashCount: true,        // 零錢數量管理
+  payTransfer: false,     // 付款方式：轉帳
+  payCard: false,         // 付款方式：刷卡
   coin1: false,           // 1 元面額
   giftEnabled: true,      // 贈與單
   brewEnabled: true,      // 沖泡耗用單
@@ -16,7 +18,9 @@ export const DEFAULT_SETTINGS = {
 }
 
 export const PAY_TYPE_LABEL = { full: '現場付全額', deposit: '先付訂金', cod: '貨到付款' }
-export const METHOD_LABEL = { cash: '現金', linepay: 'LINE Pay' }
+export const METHOD_LABEL = { cash: '現金', linepay: 'LINE Pay', transfer: '轉帳', card: '刷卡' }
+// 這個攤位開放的付款方式（功能設定：轉帳、刷卡預設關）
+export const enabledMethods = (settings = {}) => ['cash', 'linepay', ...(settings.payTransfer ? ['transfer'] : []), ...(settings.payCard ? ['card'] : [])]
 export const TYPE_LABEL = {
   sale: '銷售', gift: '贈與', brew: '沖泡耗用', return: '退貨', exchange: '換貨',
   collect: '收尾款', cancelPre: '取消預購'
@@ -219,7 +223,7 @@ export function summarize(orders = [], day, adjustments = []) {
   const live = orders.filter((o) => o.status !== 'void' && (!day || o.day === day))
   const preOf = preIndex(orders)
   const r = {
-    revenue: { cash: 0, linepay: 0, total: 0 },
+    revenue: { cash: 0, linepay: 0, transfer: 0, card: 0, total: 0 },
     listTotal: 0, discountTotal: 0, refundTotal: 0, shipTotal: 0,
     perSku: {}, hourly: {},
     pre: { orders: 0, qty: 0, paid: 0, due: 0 },

@@ -4,8 +4,7 @@ import { db } from '../firebase.js'
 import { useShop, useUi, useCarts, commit, deviceId } from '../store.jsx'
 import {
   fmt, skuLabel, effectivePrice, cartTotals, changeBreakdown, denomsFor, dayOf, orderMoves,
-  lowStockCrossings, componentAvail, PAY_TYPE_LABEL, GIFT_TO, promoHits, promoNext
-} from '../lib/calc.js'
+  lowStockCrossings, componentAvail, PAY_TYPE_LABEL, GIFT_TO, promoHits, promoNext, enabledMethods, METHOD_LABEL } from '../lib/calc.js'
 import Modal from '../components/Modal.jsx'
 import { sortCats, catColor } from '../lib/template.js'
 import { parseOrder } from '../lib/voice.js'
@@ -831,6 +830,7 @@ function Checkout({ cart, onClose, onDone }) {
   const autoFree = st.freeShipThreshold > 0 && subtotalRaw >= st.freeShipThreshold
   const [fee, setFee] = useState(autoFree ? '0' : '')
   const [method, setMethod] = useState('cash')
+  const [last5, setLast5] = useState('')
   const [received, setReceived] = useState('')
 
   const t = cartTotals(cart, { shippingFee: fee, payType, deposit })
@@ -862,7 +862,8 @@ function Checkout({ cart, onClose, onDone }) {
     const rets = cart.lines.filter((l) => l.ret).map((l) => ({ skuId: l.skuId, name: l.name, qty: l.qty, price: l.price, restock: !!l.restock, ...(l.components ? { components: l.components } : {}) }))
     const money = !isMoney && !isRet ? null : due === 0 ? { method: null, amount: 0 } : {
       method, amount: due,
-      ...(method === 'cash' && due > 0 ? { received: received === '' ? due : rec, change: received === '' ? 0 : change } : {})
+      ...(method === 'cash' && due > 0 ? { received: received === '' ? due : rec, change: received === '' ? 0 : change } : {}),
+      ...(method === 'transfer' && last5 ? { last5 } : {})
     }
     const order = {
       type: orderType, ts: now, day: dayOf(now), device: deviceId, status: 'normal',
@@ -963,11 +964,18 @@ function Checkout({ cart, onClose, onDone }) {
           <div className="row between total"><span>{due < 0 ? '應退客人' : '本次應收'}</span><span>{fmt(Math.abs(due))}</span></div>
           {due !== 0 && (
             <div className="seg">
-              <button className={method === 'cash' ? 'on' : ''} onClick={() => setMethod('cash')}><Icon name="cash" size={20} />現金</button>
-              <button className={method === 'linepay' ? 'on' : ''} onClick={() => setMethod('linepay')}><Icon name="phonepay" size={20} />LINE Pay</button>
+              {enabledMethods(s.settings).map((k) => (
+                <button key={k} className={method === k ? 'on' : ''} onClick={() => setMethod(k)}>
+                  {k === 'cash' ? <Icon name="cash" size={20} /> : k === 'linepay' ? <Icon name="phonepay" size={20} /> : null}{METHOD_LABEL[k]}
+                </button>
+              ))}
             </div>
           )}
+          {method === 'transfer' && due > 0 && (
+            <label>帳號後五碼（選填，對帳用）<input className="num" inputMode="numeric" maxLength={5} value={last5} onChange={(e) => setLast5(e.target.value.replace(/[^\d]/g, '').slice(0, 5))} placeholder="例：12345" /></label>
+          )}
           {method === 'linepay' && due < 0 && <p className="warn">請到 LINE Pay 商家後台操作退款。</p>}
+          {(method === 'transfer' || method === 'card') && due < 0 && <p className="warn">請自行{method === 'card' ? '到刷卡機刷退' : '轉帳退款給客人'}。</p>}
           {method === 'cash' && due > 0 && (
             <div className="cash-pad">
               <div className="pad-left">

@@ -304,6 +304,8 @@ function ShopDetail({ shop, eventId, onEvent, onClose }) {
             <div className="kpi main"><span>場次營業額</span><b><CountUp key={eventId} value={r.revenue.total} /></b></div>
             <div className="kpi"><span><Icon name="cash" size={18} />現金</span><b><CountUp key={eventId} value={r.revenue.cash || 0} /></b></div>
             <div className="kpi"><span><Icon name="phonepay" size={18} />LINE Pay</span><b><CountUp key={eventId} value={r.revenue.linepay || 0} /></b></div>
+        {r.revenue.transfer > 0 && <div className="kpi"><span>轉帳</span><b><CountUp key={eventId} value={r.revenue.transfer} /></b></div>}
+        {r.revenue.card > 0 && <div className="kpi"><span>刷卡</span><b><CountUp key={eventId} value={r.revenue.card} /></b></div>}
             <div className="kpi"><span>銷售筆數</span><b><CountUp key={eventId} value={r.orderCount} money={false} /></b></div>
           </div>
           <div className="grid2">
