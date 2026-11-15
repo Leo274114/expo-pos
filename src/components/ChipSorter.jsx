@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import Icon from './Icon.jsx'
+import { gripRef, dragOn, dragOff } from './SortGroup.jsx'
 
 // 選項小卡：按住左右（上下）拖曳換順序；拖到右邊垃圾桶放開＝刪除
 // onMove(from, to)：to 是放開時插入的位置（以移除自己之前的索引計算）；onTrash(index)
@@ -18,6 +19,7 @@ export default function ChipSorter({ items, onMove, onTrash }) {
     const move = (ev) => {
       const dx = ev.clientX - sx, dy = ev.clientY - sy
       if (!moved && Math.hypot(dx, dy) < 6) return
+      if (!moved) dragOn()
       moved = true
       ev.preventDefault()
       const b = bin.current?.getBoundingClientRect()
@@ -39,6 +41,7 @@ export default function ChipSorter({ items, onMove, onTrash }) {
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
       setDrag(null)
+      dragOff()
       if (!moved) return
       if (state.overBin) return onTrash(i)
       let to = state.target > i ? state.target - 1 : state.target
@@ -54,7 +57,7 @@ export default function ChipSorter({ items, onMove, onTrash }) {
     <div className="chip-sorter">
       <div className="chips" ref={box}>
         {items.map((x, k) => (
-          <span key={x} data-chip
+          <span key={x} data-chip ref={gripRef}
             className={'chip on draggable' + (drag?.i === k ? ' dragging' : '') + (marker === k ? ' drop-before' : '') + (marker === items.length && k === items.length - 1 ? ' drop-after' : '')}
             style={drag?.i === k ? { transform: `translate(${drag.dx}px, ${drag.dy}px)` } : undefined}
             onPointerDown={(e) => start(e, k)} title="按住拖曳換順序；拖到垃圾桶刪除">{x}</span>

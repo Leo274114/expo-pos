@@ -474,7 +474,7 @@ th .help-pop { font-size: 14px; }
 .soldout-table tr.on td { background: var(--honey-soft); }
 .soldout-table .big-cell { font-size: 20px; font-weight: 600; }
 
-.grip { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 36px; cursor: grab; touch-action: none; color: #a7b2aa; border-radius: 6px; flex: none; }
+.grip { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 44px; margin: -4px 0; cursor: grab; touch-action: none; color: #a7b2aa; border-radius: 6px; flex: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .grip svg { fill: currentColor; }
 .grip:hover { color: var(--tea); background: var(--paper); }
 .sorting { position: relative; z-index: 5; box-shadow: 0 12px 28px rgba(24, 61, 46, 0.22); background: var(--surface); border-radius: var(--r-md); cursor: grabbing; }
@@ -730,3 +730,7 @@ button.primary.unsaved { background: var(--amber, #F58220); border-color: var(--
 .prog-num { min-width: 64px; text-align: right; font-weight: 700; display: flex; flex-direction: column; line-height: 1.15; }
 .prog-num small { font-weight: 400; color: var(--muted); font-size: 11px; }
 @media (max-width: 600px) { .prog-row { grid-template-columns: 1fr auto; } .prog-bar { grid-column: 1 / -1; grid-row: 2; } }
+
+/* 拖曳中：整頁暫停選取文字（iPad 不會出現藍色選取框） */
+body.dragging-now, body.dragging-now * { user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none !important; }
+.chip.draggable { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }

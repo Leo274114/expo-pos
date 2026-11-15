@@ -1,5 +1,12 @@
 import { createElement, useRef } from 'react'
 
+// iPad Safari 長按會進入「選取文字」（藍框），拖曳就啟動不了：
+// 用原生 touchstart（非 passive）在一開始攔下，拖曳期間整頁暫停選取
+const stopTouch = (e) => { if (e.cancelable) e.preventDefault() }
+export const gripRef = (el) => { if (el && !el.__grip) { el.__grip = true; el.addEventListener('touchstart', stopTouch, { passive: false }) } }
+export const dragOn = () => { document.body.classList.add('dragging-now'); try { window.getSelection()?.removeAllRanges() } catch { /* 忽略 */ } }
+export const dragOff = () => document.body.classList.remove('dragging-now')
+
 // 拖曳排序：按住每一列左邊的「⋮⋮」上下拖曳，放開後呼叫 onDrop(from, to)
 // 手指、滑鼠都可以；children(item, index, grip) 回傳的元素要加 data-sort
 export default function SortGroup({ as = 'div', items, onDrop, children, className }) {
@@ -17,6 +24,7 @@ export default function SortGroup({ as = 'div', items, onDrop, children, classNa
     const startY = e.clientY
     let target = index
     me.classList.add('sorting')
+    dragOn()
     els.forEach((el, i) => { if (i !== index) el.style.transition = 'transform 0.15s ease' })
     const move = (ev) => {
       ev.preventDefault()
@@ -43,6 +51,7 @@ export default function SortGroup({ as = 'div', items, onDrop, children, classNa
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
       me.classList.remove('sorting')
+      dragOff()
       els.forEach((el) => { el.style.transform = ''; el.style.transition = '' })
       if (target !== index) onDrop(index, target)
     }
@@ -51,7 +60,7 @@ export default function SortGroup({ as = 'div', items, onDrop, children, classNa
     window.addEventListener('pointercancel', up)
   }
   const grip = (i) => (
-    <span className="grip" onPointerDown={(e) => start(e, i)} onClick={(e) => e.stopPropagation()} title="按住上下拖曳排序" aria-label="拖曳排序" role="button">
+    <span className="grip" ref={gripRef} onPointerDown={(e) => start(e, i)} onClick={(e) => e.stopPropagation()} title="按住上下拖曳排序" aria-label="拖曳排序" role="button">
       <svg width="14" height="20" viewBox="0 0 14 20" aria-hidden="true">
         {[4, 10, 16].map((y) => [<circle key={'a' + y} cx="4" cy={y} r="1.7" />, <circle key={'b' + y} cx="10" cy={y} r="1.7" />])}
       </svg>
