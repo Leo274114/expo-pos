@@ -12,6 +12,13 @@ export default function Shipping() {
   const ui = useUi()
   const [filter, setFilter] = useState('pending')
   const [money, setMoney] = useState(null) // { o, kind: 'collect' | 'cancel', amount }
+  const [edit, setEdit] = useState(null) // { o, name, phone, address, note }
+  const saveShip = () => {
+    const { o, ...f } = edit
+    commit(writeBatch(db).set(doc(db, s.eventPath, 'shipping', o.id), { ...f, updatedAt: Date.now() }, { merge: true }))
+    ui.toast('收件資料已更新', { kind: 'ok' })
+    setEdit(null)
+  }
   const preOf = preIndex(s.orders)
   const no = Object.fromEntries([...s.orders].sort((a, b) => a.ts - b.ts).map((o, i) => [o.id, i + 1]))
   const all = s.orders.filter((o) => o.pre && o.status !== 'void').map((o) => ({ o, ps: preOf(o) }))
@@ -62,9 +69,12 @@ export default function Shipping() {
                 {o.shippingFee > 0 && <div className="muted">運費 {fmt(o.shippingFee)}</div>}
               </div>
               <div className="ship-info">
-                <div>👤 {sh.name}　📞 <a href={`tel:${sh.phone}`}>{sh.phone}</a></div>
-                <div>📍 {sh.address}</div>
+                <div>👤 {sh.name || <span className="miss">未填收件人</span>}　📞 {sh.phone ? <a href={`tel:${sh.phone}`}>{sh.phone}</a> : <span className="miss">未填電話</span>}</div>
+                <div>📍 {sh.address || <span className="miss">未填地址</span>}</div>
                 {sh.note && <div className="muted">{sh.note}</div>}
+                <button className="small-btn" onClick={() => setEdit({ o, name: sh.name || '', phone: sh.phone || '', address: sh.address || '', note: sh.note || '' })}>
+                  {!sh.name || !sh.phone || !sh.address ? '補填收件資料' : '修改收件資料'}
+                </button>
               </div>
               {!ps.cancelled && (
                 <div className="row gap end">
@@ -78,6 +88,17 @@ export default function Shipping() {
         })}
         {!list.length && <p className="muted center">沒有資料</p>}
       </div>
+      {edit && (
+        <Modal title={`收件資料 #${no[edit.o.id]}`} onClose={() => setEdit(null)}
+          footer={<><button onClick={() => setEdit(null)}>取消</button><button className="primary" onClick={saveShip}>儲存</button></>}>
+          <div className="grid2">
+            <label>收件人<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
+            <label>電話<input inputMode="tel" value={edit.phone} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} /></label>
+          </div>
+          <label>地址<input value={edit.address} onChange={(e) => setEdit({ ...edit, address: e.target.value })} /></label>
+          <label>備註<input value={edit.note} onChange={(e) => setEdit({ ...edit, note: e.target.value })} /></label>
+        </Modal>
+      )}
       {money && (
         <Modal title={money.kind === 'collect' ? `收尾款 #${no[money.o.id]}` : `取消預購 #${no[money.o.id]}`} onClose={() => setMoney(null)}
           footer={<>

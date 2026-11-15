@@ -734,3 +734,6 @@ button.primary.unsaved { background: var(--amber, #F58220); border-color: var(--
 /* 拖曳中：整頁暫停選取文字（iPad 不會出現藍色選取框） */
 body.dragging-now, body.dragging-now * { user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none !important; }
 .chip.draggable { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+
+.ship-info .miss { color: #b85a00; font-weight: 600; }
+.ship-info .small-btn { margin-top: 6px; }

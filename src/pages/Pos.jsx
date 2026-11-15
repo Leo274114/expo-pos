@@ -842,7 +842,8 @@ function Checkout({ cart, onClose, onDone }) {
 
   const errs = []
   if (hasPre && type === 'sale') {
-    if (!ship.name.trim() || !ship.phone.trim() || !ship.address.trim()) errs.push('請填寫收件人、電話、地址')
+    // 收件人、電話、地址至少填一樣，其他可以之後在「預購單」補
+    if (!ship.name.trim() && !ship.phone.trim() && !ship.address.trim()) errs.push('收件人、電話、地址至少填一樣（其他可以之後在預購單補）')
     if (payType === 'deposit' && !(Number(deposit) > 0)) errs.push('請輸入訂金')
   }
   if (isMoney && due > 0 && method === 'cash' && received !== '' && rec < due) errs.push('收款不足')
@@ -938,6 +939,7 @@ function Checkout({ cart, onClose, onDone }) {
           </div>
           <label>地址<input value={ship.address} onChange={(e) => setShip({ ...ship, address: e.target.value })} /></label>
           <label>備註<input value={ship.note} onChange={(e) => setShip({ ...ship, note: e.target.value })} /></label>
+          <p className="muted small">收件人、電話、地址至少填一樣就能結帳，其他可以之後到「預購單」補。</p>
           <label>運費{autoFree && <span className="badge">已達滿額免運</span>}
             <input className="num" inputMode="numeric" value={fee} onChange={(e) => setFee(e.target.value.replace(/[^\d]/g, ''))} placeholder="0" />
           </label>
