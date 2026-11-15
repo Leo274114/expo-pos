@@ -20,6 +20,10 @@ export default function Summary() {
   useStickTop()
   const [day, setDay] = useState(today())
   const [scope, setScope] = useState('day')
+  // 上方功能捷徑：點了只顯示那一區（記在裝置上）
+  const [sec, setSecRaw] = useState(() => { try { return localStorage.getItem('summary-sec') || 'all' } catch { return 'all' } })
+  const setSec = (v) => { setSecRaw(v); try { localStorage.setItem('summary-sec', v) } catch { /* 忽略 */ } }
+  const show = (k) => sec === 'all' || sec === k
   if (!s.eventId) return <div className="page"><div className="warn">請先建立展覽場次。</div></div>
   const r = summarize(s.orders, day)
 
@@ -52,6 +56,17 @@ export default function Summary() {
     .filter((x) => x.n <= lowTh)
     .sort((a, b) => a.n - b.n)
 
+  // 距離完售：已賣（含贈與、沖泡、調整）÷ 初始庫存，依進度排序
+  const progress = s.skus
+    .filter((k) => !(k.components || []).length && s.productById[k.productId]?.trackStock !== false)
+    .map((k) => {
+      const init = Number(s.stockInit[k.id]?.initial ?? 0) || 0
+      const left = Math.max(0, s.stock[k.id] ?? 0)
+      return { k, init, left, used: Math.max(0, init - left), pct: init ? Math.min(1, Math.max(0, (init - left) / init)) : 0 }
+    })
+    .filter((x) => x.init > 0 && (s.productById[x.k.productId]?.active !== false && x.k.active !== false || x.used > 0))
+    .sort((a, b) => b.pct - a.pct || a.left - b.left)
+
   const open = s.cashCounts[`${day}_open`], close = s.cashCounts[`${day}_close`]
   const exp = expectedCash(s.orders, day, open ? countTotal(open.counts) : 0, s.cashMoves)
   const diff = close ? countTotal(close.counts) - exp.expected : null
@@ -62,7 +77,13 @@ export default function Summary() {
         <DaySelect event={s.event} value={day} onChange={setDay} />
         <button onClick={() => exportEventExcel(s).catch((e) => ui.toast('下載失敗：' + e.message, { kind: 'error' }))}>下載 Excel</button>
       </div>
+      <div className="tabs scroll sec-tabs">
+        {[['all', '全部'], ['money', '營業額'], ['detail', '金額明細'], ['hot', '熱賣'], ['items', '各品項銷售'], ['progress', '完售進度'], ['soldout', '低庫存・完售'], ['supplies', '耗材']].map(([k, v]) => (
+          <button key={k} className={sec === k ? 'on' : ''} onClick={() => { setSec(k); document.querySelector('main')?.scrollTo({ top: 0 }) }}>{v}</button>
+        ))}
+      </div>
 
+      {show('money') && <>
       <div className="kpis">
         <div className="kpi main"><span>今日營業額</span><b><CountUp key={day} value={r.revenue.total} /></b></div>
         <div className="kpi"><span><Icon name="cash" size={18} />現金</span><b><CountUp key={day} value={r.revenue.cash || 0} /></b></div>
@@ -76,8 +97,9 @@ export default function Summary() {
         <h4>每小時營業額</h4>
         <BarChart key={'h' + day} data={hourly} />
       </div>
+      </>}
 
-      <div className="grid2">
+      {show('detail') && <div className="grid2">
         <div className="card">
           <h4>金額明細<Help>{HELP.revenue}</Help></h4>
           <div className="row between"><span>原價總額</span><span>{fmt(r.listTotal)}</span></div>
@@ -104,17 +126,17 @@ export default function Summary() {
             </>
           )}
         </div>
-      </div>
+      </div>}
 
-      <InView className="card">
+      {show('hot') && <InView className="card">
         <div className="row between wrap">
           <h4>熱賣排行（前 10 名）</h4>
           <span className="muted small">{scope === 'event' ? '整個展期' : day === today() ? '今天' : day.slice(5).replace('-', '/')}・依銷售數量</span>
         </div>
         <HotRank rows={rows} />
-      </InView>
+      </InView>}
 
-      <div className="card">
+      {show('items') && <div className="card">
         <div className="row between wrap">
           <h4>各品項銷售數量</h4>
           <div className="seg small-seg">
@@ -136,13 +158,32 @@ export default function Summary() {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
 
-      <div className="grid2">
+      {show('progress') && <div className="card">
+        <div className="row between wrap">
+          <h4>距離完售</h4>
+          <span className="muted small">已賣出（含贈與、沖泡）÷ 初始庫存，整個展期</span>
+        </div>
+        <div className="progress-list">
+          {progress.map(({ k, init, left, used, pct }) => (
+            <div key={k.id} className={'prog-row' + (left <= 0 ? ' done' : pct >= 0.8 ? ' near' : '')}>
+              <div className="prog-name">{skuLabel(k, s.productById[k.productId])}</div>
+              <div className="prog-bar"><i style={{ width: `${Math.round(pct * 100)}%` }} /></div>
+              <div className="prog-num num">{left <= 0 ? '完售' : `剩 ${left}`}<small>{used}／{init}</small></div>
+            </div>
+          ))}
+          {!progress.length && <p className="muted">還沒有填初始庫存的品項</p>}
+        </div>
+      </div>}
+
+      {show('money') && (
         <InView className="card">
           <h4>展期每日營業額</h4>
           <LineChart data={daily} height={150} />
         </InView>
+      )}
+      {show('soldout') && <div>
         <div className="card">
           <h4>低庫存（≤ {lowTh}）</h4>
           {low.map(({ k, n }) => (
@@ -150,8 +191,6 @@ export default function Summary() {
           ))}
           {!low.length && <p className="muted">庫存充足</p>}
         </div>
-      </div>
-
       <div className="card">
         <h4>完售紀錄<Help>{HELP.soldOut}</Help></h4>
         <div className="table-wrap scroll-head">
@@ -176,7 +215,9 @@ export default function Summary() {
           </table>
         </div>
       </div>
+      </div>}
 
+      {show('supplies') && <>
       <div className="card">
         <h4>耗材（整個場次）<Help>{HELP.supplies}</Help></h4>
         <div className="table-wrap">
@@ -197,6 +238,7 @@ export default function Summary() {
         <p className="muted small">在「管理 → 耗材」填寫；非必填。</p>
       </div>
       <DailyTable readOnly />
+      </>}
     </div>
   )
 }

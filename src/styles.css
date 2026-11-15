@@ -715,3 +715,18 @@ button.primary.unsaved { background: var(--amber, #F58220); border-color: var(--
 .table-wrap.scroll-head { max-height: min(70vh, calc(100dvh - 220px)); overflow: auto; overscroll-behavior: contain; }
 .scroll-head thead th { position: sticky; top: 0; z-index: 3; background: var(--surface); box-shadow: 0 1px 0 var(--line); }
 .scroll-head thead th.sku-sticky { z-index: 5; left: 0; }
+
+/* 總結：功能捷徑 */
+.sec-tabs { margin: 0 0 12px; }
+/* 距離完售進度條 */
+.progress-list { display: flex; flex-direction: column; gap: 8px; max-height: min(70vh, 640px); overflow: auto; }
+.prog-row { display: grid; grid-template-columns: minmax(120px, 2fr) 3fr auto; align-items: center; gap: 10px; }
+.prog-name { font-size: 14px; line-height: 1.3; }
+.prog-bar { height: 14px; border-radius: 7px; background: #ece6dc; overflow: hidden; }
+.prog-bar i { display: block; height: 100%; border-radius: 7px; background: var(--tea, #2f6b4f); transition: width 0.6s ease; }
+.prog-row.near .prog-bar i { background: var(--amber, #F58220); }
+.prog-row.done .prog-bar i { background: var(--cherry, #c0392b); }
+.prog-row.done .prog-num { color: var(--cherry, #c0392b); }
+.prog-num { min-width: 64px; text-align: right; font-weight: 700; display: flex; flex-direction: column; line-height: 1.15; }
+.prog-num small { font-weight: 400; color: var(--muted); font-size: 11px; }
+@media (max-width: 600px) { .prog-row { grid-template-columns: 1fr auto; } .prog-bar { grid-column: 1 / -1; grid-row: 2; } }
