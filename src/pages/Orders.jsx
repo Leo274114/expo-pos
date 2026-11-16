@@ -11,11 +11,16 @@ export default function Orders() {
   const s = useShop()
   const [day, setDay] = useState(today())
   const [filter, setFilter] = useState('all')
+  const [pay, setPay] = useState('all') // 付款方式篩選
   const [retFor, setRetFor] = useState(null)
   const [voidFor, setVoidFor] = useState(null)
   const [payFor, setPayFor] = useState(null)
   const retMap = returnedMap(s.orders)
-  const list = s.orders.filter((o) => o.day === day && (filter === 'all' || (filter === 'void' ? o.status === 'void' : o.type === filter)))
+  const list = s.orders.filter((o) => o.day === day && (filter === 'all' || (filter === 'void' ? o.status === 'void' : o.type === filter))
+    && (pay === 'all' || o.money?.method === pay))
+  // 付款方式按鈕：開放的方式＋這天有出現過的方式
+  const payKeys = [...new Set([...enabledMethods(s.settings), ...s.orders.filter((o) => o.day === day && o.money?.method).map((o) => o.money.method)])]
+  const payTotal = list.filter((o) => o.status !== 'void').reduce((a, o) => a + (o.money?.amount || 0), 0)
   const no = Object.fromEntries([...s.orders].sort((a, b) => a.ts - b.ts).map((o, i) => [o.id, i + 1]))
 
   const doVoid = (o) => {
@@ -34,7 +39,11 @@ export default function Orders() {
           {Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           <option value="void">已作廢</option>
         </select>
-        <span className="muted">{list.length} 筆</span>
+        <span className="muted">{list.length} 筆{pay !== 'all' ? `・合計 ${fmt(payTotal)}` : ''}</span>
+        <div className="seg pay-filter">
+          <button className={pay === 'all' ? 'on' : ''} onClick={() => setPay('all')}>全部付款</button>
+          {payKeys.map((k) => <button key={k} className={pay === k ? 'on' : ''} onClick={() => setPay(k)}>{METHOD_LABEL[k]}</button>)}
+        </div>
       </div>
       <div className="cards">
         {list.map((o) => <OrderCard key={o.id} o={o} no={no[o.id]} refNo={no[o.refOrderId]} returned={retMap[o.id]}

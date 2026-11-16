@@ -744,3 +744,5 @@ body.dragging-now, body.dragging-now * { user-select: none !important; -webkit-u
 .paycheck-inputs input { width: 100%; }
 .paycheck-list { margin-top: 6px; max-height: 260px; overflow: auto; font-size: 14px; }
 .paycheck-list .row { padding: 4px 0; border-bottom: 1px dashed var(--line); gap: 8px; }
+
+.pay-filter { margin: 0; flex-basis: 100%; }
