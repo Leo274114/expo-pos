@@ -193,7 +193,7 @@ function PurgeExpired({ shops, onDone }) {
         const refs = r.orders.map((o) => doc(db, ...base, 'orders', o.id))
         // 收件資料讀不到，按訂單 ID 刪除
         for (const o of r.orders) if (o.pre) refs.push(doc(db, ...base, 'shipping', o.id))
-        for (const c of ['stock', 'adjustments', 'supplies', 'cashCounts', 'cashMoves']) {
+        for (const c of ['stock', 'adjustments', 'supplies', 'cashCounts', 'cashMoves', 'payChecks']) {
           const snap = await getDocs(collection(db, ...base, c))
           snap.docs.forEach((d) => refs.push(d.ref))
         }

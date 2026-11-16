@@ -284,6 +284,13 @@ export function summarize(orders = [], day, adjustments = []) {
 }
 
 // 應有現金：零用金 + 當日所有現金收支 + 現金調整
+// 某一天某付款方式的紀錄（LINE Pay、轉帳、刷卡對帳用）：合計、筆數、明細
+export function methodDay(orders = [], day, method) {
+  const list = orders.filter((o) => o.status !== 'void' && o.day === day && o.money?.method === method && o.money.amount)
+    .sort((a, b) => a.ts - b.ts)
+  return { total: list.reduce((a, o) => a + o.money.amount, 0), count: list.length, list }
+}
+
 export function expectedCash(orders = [], day, openTotal = 0, cashMoves = []) {
   let cash = 0
   for (const o of orders) {

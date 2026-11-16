@@ -632,7 +632,8 @@ function EventsTab() {
       adjustments: s.adjustments.filter((a) => before(a.ts)),
       // 零錢點算的數量保留（開店零用金常在開展前一晚就點好），只刪現金調整
       cashCounts: [],
-      cashMoves: s.cashMoves.filter((m) => (m.day ? m.day < e.start : before(m.ts)))
+      cashMoves: s.cashMoves.filter((m) => (m.day ? m.day < e.start : before(m.ts))),
+      payChecks: Object.entries(s.payChecks || {}).filter(([, c]) => c.day < e.start).map(([id]) => id)
     }
   }
   const clearTest = async (e) => {
@@ -643,7 +644,8 @@ function EventsTab() {
       ...t.shipping.map((id) => doc(db, s.eventPath, 'shipping', id)),
       ...t.adjustments.map((a) => doc(db, s.eventPath, 'adjustments', a.id)),
       ...t.cashCounts.map((id) => doc(db, s.eventPath, 'cashCounts', id)),
-      ...t.cashMoves.map((m) => doc(db, s.eventPath, 'cashMoves', m.id))
+      ...t.cashMoves.map((m) => doc(db, s.eventPath, 'cashMoves', m.id)),
+      ...t.payChecks.map((id) => doc(db, s.eventPath, 'payChecks', id))
     ]
     for (let i = 0; i < refs.length; i += 400) {
       const b = writeBatch(db)
@@ -661,7 +663,7 @@ function EventsTab() {
   const wipe = async (e) => {
     const word = prompt(`將永久刪除「${e.name}」的所有資料（銷售、庫存、零錢、收件資料、耗材）。\n請先下載 Excel。\n確定刪除請輸入：刪除`)
     if (word !== '刪除') return
-    const subs = ['orders', 'stock', 'adjustments', 'cashCounts', 'cashMoves', 'shipping', 'supplies']
+    const subs = ['orders', 'stock', 'adjustments', 'cashCounts', 'cashMoves', 'shipping', 'supplies', 'payChecks']
     let n = 0
     for (const c of subs) {
       const snap = await getDocs(collection(db, s.shopPath, 'events', e.id, c))

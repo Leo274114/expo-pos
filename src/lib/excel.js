@@ -1,5 +1,5 @@
 import { sortCats } from './template.js'
-import { soldOutTimes, preIndex, TYPE_LABEL, METHOD_LABEL, PAY_TYPE_LABEL, timeOf, orderMoves, summarize, countTotal, expectedCash, daysBetween, skuLabel, supplyRows } from './calc.js'
+import { methodDay, soldOutTimes, preIndex, TYPE_LABEL, METHOD_LABEL, PAY_TYPE_LABEL, timeOf, orderMoves, summarize, countTotal, expectedCash, daysBetween, skuLabel, supplyRows } from './calc.js'
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const XLSX_TYPE = { description: 'Excel 檔案', accept: { [XLSX_MIME]: ['.xlsx'] } }
@@ -156,6 +156,22 @@ export function eventSheets(s) {
   }
   for (const c of s.cashMoves) cashRows.push({ 日期: c.day, 開店零用金: '', 現金收支: '', 現金調整: c.amount, 應有現金: '', 收攤實點: '', 差額: '', 開店面額: '調整原因：' + c.reason + (c.note ? '・' + c.note : ''), 收攤面額: '' })
   add('零錢對帳', cashRows)
+
+  // 6b. LINE Pay／轉帳／刷卡對帳（好攤登記 vs 後台）
+  const payRows = []
+  for (const d of [...days, ...extra].sort()) {
+    for (const m of ['linepay', 'transfer', 'card']) {
+      const rec = methodDay(orders, d, m)
+      const chk = (s.payChecks || {})[`${d}_${m}`]
+      if (!rec.count && !chk) continue
+      payRows.push({
+        日期: d, 付款方式: METHOD_LABEL[m], 好攤登記金額: rec.total, 好攤登記筆數: rec.count,
+        後台金額: chk?.amount ?? '', 後台筆數: chk?.count ?? '',
+        金額差額: chk?.amount != null ? chk.amount - rec.total : '', 筆數差額: chk?.count != null ? chk.count - rec.count : ''
+      })
+    }
+  }
+  if (payRows.length) add('非現金對帳', payRows)
 
   // 7. 退換貨
   add('退換貨', orders.filter((o) => o.type === 'return' || o.type === 'exchange' || o.type === 'cancelPre').map((o) => ({

@@ -737,3 +737,10 @@ body.dragging-now, body.dragging-now * { user-select: none !important; -webkit-u
 
 .ship-info .miss { color: #b85a00; font-weight: 600; }
 .ship-info .small-btn { margin-top: 6px; }
+
+/* LINE Pay 等非現金對帳 */
+.paycheck-inputs { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin: 8px 0; }
+.paycheck-inputs label { flex: 1 1 120px; }
+.paycheck-inputs input { width: 100%; }
+.paycheck-list { margin-top: 6px; max-height: 260px; overflow: auto; font-size: 14px; }
+.paycheck-list .row { padding: 4px 0; border-bottom: 1px dashed var(--line); gap: 8px; }

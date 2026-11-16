@@ -71,7 +71,7 @@ export function ShopProvider({ children }) {
   const [products, setProducts] = useState([])
   const [skus, setSkus] = useState([])
   const [events, setEvents] = useState([])
-  const [ev, setEv] = useState({ stockInit: {}, orders: [], adjustments: [], cashCounts: {}, cashMoves: [], shipping: {}, supplies: {} })
+  const [ev, setEv] = useState({ stockInit: {}, orders: [], adjustments: [], cashCounts: {}, cashMoves: [], shipping: {}, supplies: {}, payChecks: {} })
   const [loaded, setLoaded] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
 
@@ -120,7 +120,7 @@ export function ShopProvider({ children }) {
   // 展覽場次層
   const [pend, setPend] = useState({})
   useEffect(() => {
-    setEv({ stockInit: {}, orders: [], adjustments: [], cashCounts: {}, cashMoves: [], shipping: {}, supplies: {} })
+    setEv({ stockInit: {}, orders: [], adjustments: [], cashCounts: {}, cashMoves: [], shipping: {}, supplies: {}, payChecks: {} })
     if (!eventPath) return
     const set = (k, v) => setEv((e) => ({ ...e, [k]: v }))
     setPend({})
@@ -137,7 +137,9 @@ export function ShopProvider({ children }) {
       watch('cashCounts', (s) => set('cashCounts', toMap(s))),
       watch('cashMoves', (s) => set('cashMoves', toList(s).sort((a, b) => b.ts - a.ts))),
       watch('shipping', (s) => set('shipping', toMap(s))),
-      watch('supplies', (s) => set('supplies', toMap(s)))
+      watch('supplies', (s) => set('supplies', toMap(s))),
+      // 非現金對帳：LINE Pay 等後台的金額與筆數（每天一筆：{day}_{method}）
+      watch('payChecks', (s) => set('payChecks', toMap(s)))
     ]
     return () => unsubs.forEach((u) => u())
   }, [eventPath])

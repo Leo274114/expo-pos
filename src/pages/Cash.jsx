@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { doc, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useShop, useUi, commit, deviceId, leaveGuard } from '../store.jsx'
-import { fmt, today, countTotal, denomsFor, expectedCash, timeOf, dayOf } from '../lib/calc.js'
+import { fmt, today, countTotal, denomsFor, expectedCash, timeOf, dayOf, enabledMethods, METHOD_LABEL, methodDay, TYPE_LABEL } from '../lib/calc.js'
 import { CASH_REASONS } from '../lib/template.js'
 import DaySelect from '../components/DaySelect.jsx'
 import Help from '../components/Help.jsx'
@@ -103,6 +103,7 @@ export default function Cash() {
           <p className="big-text">{leaveGuard.msg?.replace('要離開嗎？', '要換到其他日期嗎？')}</p>
         </Modal>
       )}
+      {enabledMethods(s.settings).filter((m) => m !== 'cash').map((m) => <PayCheck key={m + day} method={m} day={day} />)}
       <div className="card recon">
         <h4>現金對帳<Help>{HELP.cashRecon}</Help></h4>
         {s.settings.cashCount && <div className="row between"><span>開店零用金</span><span>{fmt(openTotal)}</span></div>}
@@ -131,6 +132,57 @@ export default function Cash() {
         ))}
       </div>
       {day !== dayOf(Date.now()) && <p className="muted">正在檢視 {day} 的資料</p>}
+    </div>
+  )
+}
+
+// LINE Pay（轉帳、刷卡）對帳：App 登記的金額／筆數 vs 後台查到的金額／筆數
+function PayCheck({ method, day }) {
+  const s = useShop()
+  const ui = useUi()
+  const rec = methodDay(s.orders, day, method)
+  const id = `${day}_${method}`
+  const saved = s.payChecks[id]
+  const [amt, setAmt] = useState(saved?.amount != null ? String(saved.amount) : '')
+  const [cnt, setCnt] = useState(saved?.count != null ? String(saved.count) : '')
+  const [open, setOpen] = useState(false)
+  const name = METHOD_LABEL[method]
+  const save = () => {
+    commit(writeBatch(db).set(doc(db, s.eventPath, 'payChecks', id), {
+      day, method, amount: amt === '' ? null : Number(amt), count: cnt === '' ? null : Number(cnt), ts: Date.now(), device: deviceId
+    }))
+    ui.toast(`已儲存 ${name} 對帳`, { kind: 'ok' })
+  }
+  const dirty = (amt === '' ? null : Number(amt)) !== (saved?.amount ?? null) || (cnt === '' ? null : Number(cnt)) !== (saved?.count ?? null)
+  const bAmt = saved?.amount, bCnt = saved?.count
+  const dA = bAmt == null ? null : bAmt - rec.total
+  const dC = bCnt == null ? null : bCnt - rec.count
+  if (!rec.count && !saved && method !== 'linepay') return null
+  return (
+    <div className="card recon paycheck">
+      <h4>{name} 對帳<Help>{`把「${name}」後台（商家 App）這一天的收款總額與筆數填進來，跟好攤登記的比對。不一樣時，到「銷售」頁看是不是有單按錯付款方式（可以「改付款方式」修正），或漏記、重複記。`}</Help></h4>
+      <div className="row between"><span>好攤登記</span><span><b>{fmt(rec.total)}</b>・{rec.count} 筆</span></div>
+      <div className="paycheck-inputs">
+        <label>後台金額<input className="num" inputMode="numeric" value={amt} placeholder="例：13380" onChange={(e) => setAmt(e.target.value.replace(/[^\d-]/g, ''))} /></label>
+        <label>後台筆數<input className="num" inputMode="numeric" value={cnt} placeholder="選填" onChange={(e) => setCnt(e.target.value.replace(/[^\d]/g, ''))} /></label>
+        <button className={'primary' + (dirty ? ' unsaved' : '')} onClick={save} disabled={!dirty}>儲存</button>
+      </div>
+      {dA != null && (
+        <div className={'row between total ' + (dA === 0 && (dC == null || dC === 0) ? 'pos' : 'neg')}>
+          <span>差額</span>
+          <span>{dA === 0 ? '✓ 金額相符' : (dA > 0 ? '後台多 ' : '後台少 ') + fmt(Math.abs(dA))}{dC != null && dC !== 0 ? `・筆數${dC > 0 ? '多' : '少'} ${Math.abs(dC)} 筆` : dC === 0 ? '・筆數相符' : ''}</span>
+        </div>
+      )}
+      {dA != null && dA !== 0 && <p className="muted small">{dA > 0 ? `可能有 ${name} 的單被記成現金或其他方式（到「銷售」按「改付款方式」），或漏記。` : `可能有單被誤記成 ${name}，或重複記了一筆。`}</p>}
+      <button className="link small" onClick={() => setOpen(!open)}>{open ? '收起' : `看這天的 ${name} 明細（${rec.count} 筆）`}</button>
+      {open && (
+        <div className="paycheck-list">
+          {rec.list.map((o) => (
+            <div key={o.id} className="row between"><span className="muted">{timeOf(o.ts)}</span><span>{(o.items || []).map((i) => i.name).join('、').slice(0, 24) || TYPE_LABEL[o.type]}</span><b className={o.money.amount < 0 ? 'neg' : ''}>{fmt(o.money.amount)}</b></div>
+          ))}
+          {!rec.list.length && <p className="muted">這天沒有 {name} 的紀錄</p>}
+        </div>
+      )}
     </div>
   )
 }
