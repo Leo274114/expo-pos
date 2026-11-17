@@ -2,15 +2,18 @@ import { useState } from 'react'
 import { doc, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useShop, useUi, commit, deviceId } from '../store.jsx'
-import { fmt, timeOf, dayOf, preIndex, PAY_TYPE_LABEL, METHOD_LABEL, enabledMethods } from '../lib/calc.js'
+import { fmt, timeOf, dayOf, preIndex, preTally, PAY_TYPE_LABEL, METHOD_LABEL, enabledMethods } from '../lib/calc.js'
 import Modal from '../components/Modal.jsx'
 import Help from '../components/Help.jsx'
 import { HELP } from '../lib/help.js'
+import { sortCats } from '../lib/template.js'
 
 export default function Shipping() {
   const s = useShop()
   const ui = useUi()
   const [filter, setFilter] = useState('pending')
+  const [tallyOpen, setTallyOpen] = useState(() => { try { return localStorage.getItem('pre-tally') !== '0' } catch { return true } })
+  const toggleTally = () => { const v = !tallyOpen; setTallyOpen(v); try { localStorage.setItem('pre-tally', v ? '1' : '0') } catch {} }
   const [money, setMoney] = useState(null) // { o, kind: 'collect' | 'cancel', amount }
   const [edit, setEdit] = useState(null) // { o, name, phone, address, note }
   const saveShip = () => {
@@ -24,6 +27,15 @@ export default function Shipping() {
   const all = s.orders.filter((o) => o.pre && o.status !== 'void').map((o) => ({ o, ps: preOf(o) }))
   const list = all.filter(({ o, ps }) =>
     filter === 'all' ? true : filter === 'pending' ? !ps.cancelled && !o.pre.shipped : filter === 'shipped' ? o.pre.shipped && !ps.cancelled : ps.cancelled)
+
+  // 預購品項統計：跟著上方分頁；「全部」不含已取消
+  const pIdx = Object.fromEntries(s.products.map((p, i) => [p.id, i]))
+  const skuOrder = Object.fromEntries(s.skus.map((k, i) => [k.id, (pIdx[k.productId] ?? 999) * 10000 + i]))
+  const tallyOrders = list.filter(({ ps }) => filter === 'cancelled' || !ps.cancelled).map(({ o }) => o)
+  const tally = preTally(tallyOrders, skuOrder)
+  const tallyCats = {}
+  for (const r of tally) (tallyCats[r.category] ||= { qty: 0, rows: [] }).rows.push(r), tallyCats[r.category].qty += r.qty
+  const tallyLabel = { pending: '未出貨', shipped: '已出貨', cancelled: '已取消', all: '全部（不含已取消）' }[filter]
 
   const toggleShipped = (o) => commit(writeBatch(db).set(doc(db, s.eventPath, 'orders', o.id), { pre: { ...o.pre, shipped: !o.pre.shipped, shippedAt: Date.now() } }, { merge: true }))
 
@@ -54,6 +66,27 @@ export default function Shipping() {
         ))}
         </div>
       </div>
+      {tally.length > 0 && (
+        <div className="card pre-tally">
+          <div className="row between">
+            <h4 style={{ margin: 0 }}>預購品項統計 <span className="muted small">{tallyLabel}・{tallyOrders.length} 單</span></h4>
+            <button className="small-btn" onClick={toggleTally}>{tallyOpen ? '收合' : '展開'}</button>
+          </div>
+          {tallyOpen && (
+            <table>
+              <thead><tr><th>品項</th><th className="num">數量</th><th className="num">單數</th></tr></thead>
+              <tbody>
+                {sortCats(Object.keys(tallyCats), s.settings.catOrder).map((cat) => [
+                  <tr key={cat} className="cat-row"><td>{cat}</td><td className="num">{tallyCats[cat].qty}</td><td></td></tr>,
+                  ...tallyCats[cat].rows.map((r) => (
+                    <tr key={r.skuId || r.name}><td>{r.name}</td><td className="num"><b>{r.qty}</b></td><td className="num muted">{r.orders}</td></tr>
+                  ))
+                ])}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
       <div className="cards">
         {list.map(({ o, ps }) => {
           const sh = s.shipping[o.id] || {}

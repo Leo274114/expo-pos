@@ -773,3 +773,8 @@ body.dragging-now, body.dragging-now * { user-select: none !important; -webkit-u
 .btn-mini.btn-mini-del { color: #c0392b; border-color: #efc2bc; }
 .note-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 120px; border: 2px dashed var(--line); border-radius: var(--r-md); background: transparent; font-size: 16px; font-weight: 600; color: #b85a00; cursor: pointer; }
 .note-field textarea { min-height: 84px; overflow: hidden; background: #fff; }
+
+/* 預購品項統計 */
+.pre-tally table { width: 100%; margin-top: 8px; }
+.pre-tally td:first-child { white-space: normal; overflow-wrap: anywhere; }
+.pre-tally th.num, .pre-tally td.num { text-align: right; width: 4.5em; }

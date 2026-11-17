@@ -218,6 +218,24 @@ export function preIndex(orders = []) {
   }
 }
 
+// 預購品項統計：把多張預購單的預購品項依 SKU 累加（數量、單數）
+// skuOrder：skuId → 排序值（沒有的排最後）
+export function preTally(orders = [], skuOrder = {}) {
+  const map = {}
+  for (const o of orders) {
+    const seen = new Set()
+    for (const i of o.items || []) {
+      if (!i.pre) continue
+      const k = i.skuId || i.name
+      const r = (map[k] ||= { skuId: i.skuId, name: i.name, category: i.category || '其他', qty: 0, orders: 0 })
+      r.qty += Number(i.qty) || 0
+      if (!seen.has(k)) { r.orders++; seen.add(k) }
+    }
+  }
+  const pos = (r) => skuOrder[r.skuId] ?? Infinity
+  return Object.values(map).filter((r) => r.qty > 0).sort((a, b) => pos(a) - pos(b) || a.name.localeCompare(b.name))
+}
+
 // ---------- 報表 ----------
 export function summarize(orders = [], day, adjustments = []) {
   const live = orders.filter((o) => o.status !== 'void' && (!day || o.day === day))

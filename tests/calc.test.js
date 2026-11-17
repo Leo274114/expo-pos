@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   cartTotals, computeStock, changeBreakdown, refundUnit, returnedMap, summarize, expectedCash,
-  lowStockCrossings, preIndex, dayOf, hourOf, discountAmount
+  lowStockCrossings, preIndex, preTally, dayOf, hourOf, discountAmount
 } from '../src/lib/calc.js'
 
 const L = (o) => ({ key: Math.random(), qty: 1, price: 100, listPrice: 100, ...o })
@@ -164,4 +164,14 @@ test('耗材每日用量：每天加總，沒填的不算', () => {
   assert.equal(r[0].isDaily, true)
   assert.deepEqual(r[0].daily, { '2026-11-13': 3, '2026-11-14': 2 })
   assert.equal(r[0].dailyTotal, 5)
+})
+
+test('預購品項統計：累加數量與單數，只列有預購的品項', () => {
+  const orders = [
+    { items: [{ skuId: 'a', name: 'A', category: '咖啡豆', qty: 2, pre: true }, { skuId: 'b', name: 'B', qty: 1 }] },
+    { items: [{ skuId: 'a', name: 'A', category: '咖啡豆', qty: 1, pre: true }, { skuId: 'a', name: 'A', category: '咖啡豆', qty: 1, pre: true }, { skuId: 'c', name: 'C', category: '濾掛', qty: 3, pre: true }] }
+  ]
+  const r = preTally(orders, { c: 0, a: 1 })
+  assert.deepEqual(r.map((x) => [x.skuId, x.qty, x.orders]), [['c', 3, 1], ['a', 4, 2]])
+  assert.equal(r.find((x) => x.skuId === 'c').category, '濾掛')
 })
