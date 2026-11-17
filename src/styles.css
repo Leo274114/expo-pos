@@ -763,4 +763,9 @@ body.dragging-now, body.dragging-now * { user-select: none !important; -webkit-u
 .note-field { border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 12px 12px; background: var(--paper); }
 .note-field.filled { border-color: #e7c49a; background: #fffaf3; }
 .note-field h5 { margin: 0 0 6px; font-size: 15px; }
+.note-field-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.note-field-tools { display: flex; gap: 6px; flex-shrink: 0; }
+.btn-mini { font-size: 13px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: inherit; min-height: 30px; }
+.btn-mini.btn-mini-del { color: #c0392b; border-color: #efc2bc; }
+.note-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 120px; border: 2px dashed var(--line); border-radius: var(--r-md); background: transparent; font-size: 16px; font-weight: 600; color: #b85a00; cursor: pointer; }
 .note-field textarea { min-height: 84px; overflow: hidden; background: #fff; }
