@@ -10,8 +10,13 @@ export const NOTE_FIELDS = [
 // 攤主自己加的欄位：存在攤位設定 noteCustom [{ k, label }]，所有場次共用
 // 欄位名稱也會寫進每份心得的 labels，之後刪掉或改名，舊場次寫過的內容照樣顯示
 // 舊版只有一欄「整體心得」：有寫的話顯示成「其他」
-export const noteFields = (n, custom = []) => {
-  const list = [...NOTE_FIELDS, ...custom.map((c) => [c.k, c.label, '', true])]
+// order：攤主拖曳排好的順序（欄位代號陣列，所有場次共用）；沒排過的照預設放後面
+export const sortNoteFields = (list, order = []) => {
+  const pos = (k) => { const i = order.indexOf(k); return i < 0 ? 1e6 : i }
+  return list.map((f, i) => [f, i]).sort((a, b) => pos(a[0][0]) - pos(b[0][0]) || a[1] - b[1]).map(([f]) => f)
+}
+export const noteFields = (n, custom = [], order = []) => {
+  const list = sortNoteFields([...NOTE_FIELDS, ...custom.map((c) => [c.k, c.label, '', true])], order)
   const has = new Set(list.map(([k]) => k))
   for (const [k, t] of Object.entries(n?.fields || {})) {
     if (t && !has.has(k)) list.push([k, n.labels?.[k] || '自訂欄位', '', false, true])

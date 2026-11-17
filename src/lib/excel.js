@@ -178,7 +178,7 @@ export function eventSheets(s) {
   const note = (s.notes || {})[s.eventId]
   if (hasNote(note)) {
     add('展場心得', [
-      ...noteFields(note, s.settings?.noteCustom || []).filter(([k]) => noteText(note, k)).map(([k, label]) => ({ 日期: label, 心得: noteText(note, k) })),
+      ...noteFields(note, s.settings?.noteCustom || [], s.settings?.noteOrder || []).filter(([k]) => noteText(note, k)).map(([k, label]) => ({ 日期: label, 心得: noteText(note, k) })),
       ...Object.entries(note.days || {}).filter(([, t]) => t).sort().map(([d, t]) => ({ 日期: d, 心得: t }))
     ])
   }
