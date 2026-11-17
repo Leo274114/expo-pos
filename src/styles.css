@@ -757,3 +757,10 @@ body.dragging-now, body.dragging-now * { user-select: none !important; -webkit-u
 .note-history { border-top: 1px dashed var(--line); padding: 4px 0; }
 .note-history .notes-card { box-shadow: none; border: 0; padding: 0; }
 .note-read p { white-space: pre-wrap; margin: 6px 0; }
+
+/* 心得：每一項一張卡片，文字框跟著內容長高 */
+.note-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-top: 8px; }
+.note-field { border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 12px 12px; background: var(--paper); }
+.note-field.filled { border-color: #e7c49a; background: #fffaf3; }
+.note-field h5 { margin: 0 0 6px; font-size: 15px; }
+.note-field textarea { min-height: 84px; overflow: hidden; background: #fff; }

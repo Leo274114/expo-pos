@@ -4,6 +4,8 @@ import { db } from '../firebase.js'
 import { useShop, commit } from '../store.jsx'
 import { timeOf } from '../lib/calc.js'
 import { eventDays } from './DaySelect.jsx'
+import { noteFields, noteText, hasNote } from '../lib/notes.js'
+export { NOTE_FIELDS, noteFields, noteText, hasNote } from '../lib/notes.js'
 
 // 展場心得：跟著展覽場次，存在攤位底下 notes/{場次ID}（場次 14 天後清除時心得保留，下次參展可以回頭看）
 // { eventName, start, end, all: 整體心得, days: { 'YYYY-MM-DD': 當天觀察 }, updatedAt }
@@ -14,13 +16,16 @@ export function saveNote(s, e, patch) {
   }, { merge: true }))
 }
 
-// 自動儲存的文字框：停止打字 1.5 秒或離開欄位就存
+// 自動儲存的文字框：停止打字 1.5 秒或離開欄位就存；高度跟著內容長，寫多少都看得到
 function NoteBox({ value, onSave, placeholder, rows = 4 }) {
   const [v, setV] = useState(value || '')
   const [state, setState] = useState('') // '' | 'typing' | 'saved'
   const t = useRef(null)
   const last = useRef(value || '')
   useEffect(() => { if (state !== 'typing') { setV(value || ''); last.current = value || '' } }, [value])
+  const ta = useRef(null)
+  const grow = () => { const el = ta.current; if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px' } }
+  useEffect(grow, [v])
   const flush = (text) => {
     clearTimeout(t.current)
     if (text === last.current) return
@@ -30,7 +35,7 @@ function NoteBox({ value, onSave, placeholder, rows = 4 }) {
   }
   return (
     <div className="note-box">
-      <textarea rows={rows} value={v} placeholder={placeholder}
+      <textarea ref={ta} rows={rows} value={v} placeholder={placeholder}
         onChange={(e) => { const x = e.target.value; setV(x); setState('typing'); clearTimeout(t.current); t.current = setTimeout(() => flush(x), 1500) }}
         onBlur={() => flush(v)} />
       <span className="note-state muted small">{state === 'typing' ? '輸入中…' : state === 'saved' ? '已自動儲存' : ''}</span>
@@ -47,9 +52,16 @@ export default function EventNotes({ event }) {
   return (
     <div className="card notes-card">
       <h4>展場心得・{e.name}</h4>
-      <p className="muted small">記下這次展場的觀察：人潮、客群、好賣與不好賣的、攤位位置、天氣、下次要改進的…自動儲存；場次資料 14 天後清除時，心得會保留，下次參展可以在「管理 → 展覽場次」回頭看。</p>
-      <label>整體心得</label>
-      <NoteBox value={n.all} rows={5} placeholder="例：攤位在走道轉角人潮多；藝伎試喝後成交率高；下次多帶 1/4 磅…" onSave={(all) => saveNote(s, e, { all })} />
+      <p className="muted small">每一項各自一張卡片，寫多少都會整段顯示，打字自動儲存；場次資料 14 天後清除時心得會保留，下次參展可以在「管理 → 展覽場次」回頭看。</p>
+      <div className="note-grid">
+        {noteFields(n).map(([k, label, ph]) => (
+          <div key={k} className={'note-field' + (noteText(n, k) ? ' filled' : '')}>
+            <h5>{label}</h5>
+            <NoteBox value={noteText(n, k)} rows={3} placeholder={ph}
+              onSave={(text) => saveNote(s, e, k === 'all' ? { all: text } : { fields: { [k]: text } })} />
+          </div>
+        ))}
+      </div>
       <details className="note-days" open={days.some((d) => n.days?.[d])}>
         <summary>每天的觀察（{days.filter((d) => n.days?.[d]).length}／{days.length} 天有寫）</summary>
         {days.map((d) => (
@@ -68,7 +80,7 @@ export default function EventNotes({ event }) {
 export function NotesHistory() {
   const s = useShop()
   const list = Object.entries(s.notes).map(([id, n]) => ({ id, ...n }))
-    .filter((n) => n.id !== s.eventId && (n.all || Object.values(n.days || {}).some(Boolean)))
+    .filter((n) => n.id !== s.eventId && hasNote(n))
     .sort((a, b) => (b.start || '').localeCompare(a.start || ''))
   if (!list.length) return null
   return (
@@ -81,7 +93,7 @@ export function NotesHistory() {
             <summary><b>{n.eventName}</b> <span className="muted small">{n.start}～{n.end}{ev ? '' : '（場次資料已清除）'}</span></summary>
             {ev ? <EventNotes event={ev} /> : (
               <div className="note-read">
-                {n.all && <p>{n.all}</p>}
+                {noteFields(n).filter(([k]) => noteText(n, k)).map(([k, label]) => <p key={k}><b>{label}</b>　{noteText(n, k)}</p>)}
                 {Object.entries(n.days || {}).filter(([, t]) => t).sort().map(([d, t]) => <p key={d}><b>{d.slice(5).replace('-', '/')}</b>　{t}</p>)}
               </div>
             )}

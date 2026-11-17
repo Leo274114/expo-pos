@@ -1,4 +1,5 @@
 import { sortCats } from './template.js'
+import { hasNote, noteFields, noteText } from './notes.js'
 import { methodDay, soldOutTimes, preIndex, TYPE_LABEL, METHOD_LABEL, PAY_TYPE_LABEL, timeOf, orderMoves, summarize, countTotal, expectedCash, daysBetween, skuLabel, supplyRows } from './calc.js'
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -175,9 +176,9 @@ export function eventSheets(s) {
 
   // 心得
   const note = (s.notes || {})[s.eventId]
-  if (note && (note.all || Object.values(note.days || {}).some(Boolean))) {
+  if (hasNote(note)) {
     add('展場心得', [
-      ...(note.all ? [{ 日期: '整體', 心得: note.all }] : []),
+      ...noteFields(note).filter(([k]) => noteText(note, k)).map(([k, label]) => ({ 日期: label, 心得: noteText(note, k) })),
       ...Object.entries(note.days || {}).filter(([, t]) => t).sort().map(([d, t]) => ({ 日期: d, 心得: t }))
     ])
   }
