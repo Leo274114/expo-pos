@@ -71,6 +71,7 @@ export function ShopProvider({ children }) {
   const [products, setProducts] = useState([])
   const [skus, setSkus] = useState([])
   const [events, setEvents] = useState([])
+  const [notes, setNotes] = useState({})
   const [ev, setEv] = useState({ stockInit: {}, orders: [], adjustments: [], cashCounts: {}, cashMoves: [], shipping: {}, supplies: {}, payChecks: {} })
   const [loaded, setLoaded] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -109,7 +110,9 @@ export function ShopProvider({ children }) {
       onSnapshot(collection(db, shopPath, 'optionLists'), (s) => setOptionLists(toList(s).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))),
       onSnapshot(collection(db, shopPath, 'products'), (s) => setProducts(toList(s).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))),
       onSnapshot(collection(db, shopPath, 'skus'), (s) => setSkus(toList(s).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))),
-      onSnapshot(collection(db, shopPath, 'events'), (s) => setEvents(toList(s).sort((a, b) => (b.start || '').localeCompare(a.start || ''))))
+      onSnapshot(collection(db, shopPath, 'events'), (s) => setEvents(toList(s).sort((a, b) => (b.start || '').localeCompare(a.start || '')))),
+      // 展場心得（跟著場次，但場次清除後保留）
+      onSnapshot(collection(db, shopPath, 'notes'), (s) => setNotes(toMap(s)))
     ]
     return () => unsubs.forEach((u) => u())
   }, [shopPath])
@@ -156,7 +159,7 @@ export function ShopProvider({ children }) {
     const event = events.find((e) => e.id === eventId) || null
     const supplyItems = shop?.supplyItems || DEFAULT_SUPPLIES
     return {
-      user, isAdmin, shop, shopId, shopPath, settings, optionLists, products, skus, events, event, eventId, eventPath,
+      user, isAdmin, shop, shopId, shopPath, settings, optionLists, products, skus, events, notes, event, eventId, eventPath,
       productById, skuById, labelOf, stock, loaded, ...ev, supplyItems,
       pendingCount: Object.values(pend).reduce((a, b) => a + b, 0),
       pendingOrders: pend.orders || 0,
@@ -171,7 +174,7 @@ export function ShopProvider({ children }) {
       },
       deleteAfterOf: (e) => (e?.end ? addDays(e.end, 14) : null)
     }
-  }, [user, isAdmin, shop, shopId, shopPath, optionLists, products, skus, events, eventId, eventPath, ev, loaded, pend])
+  }, [user, isAdmin, shop, shopId, shopPath, optionLists, products, skus, events, notes, eventId, eventPath, ev, loaded, pend])
 
   return <ShopCtx.Provider value={value}>{children}</ShopCtx.Provider>
 }

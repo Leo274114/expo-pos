@@ -173,6 +173,15 @@ export function eventSheets(s) {
   }
   if (payRows.length) add('非現金對帳', payRows)
 
+  // 心得
+  const note = (s.notes || {})[s.eventId]
+  if (note && (note.all || Object.values(note.days || {}).some(Boolean))) {
+    add('展場心得', [
+      ...(note.all ? [{ 日期: '整體', 心得: note.all }] : []),
+      ...Object.entries(note.days || {}).filter(([, t]) => t).sort().map(([d, t]) => ({ 日期: d, 心得: t }))
+    ])
+  }
+
   // 7. 退換貨
   add('退換貨', orders.filter((o) => o.type === 'return' || o.type === 'exchange' || o.type === 'cancelPre').map((o) => ({
     單號: no[o.id], 日期: o.day, 時間: timeOf(o.ts), 類型: TYPE_LABEL[o.type], 狀態: status(o), 原單號: no[o.refOrderId] || '',

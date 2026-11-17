@@ -15,6 +15,7 @@ import { VERSION, CHANGELOG } from '../version.js'
 import { aliasesToText, textToAliases } from '../lib/voice.js'
 import Help from '../components/Help.jsx'
 import ChipSorter from '../components/ChipSorter.jsx'
+import { NotesHistory } from '../components/Notes.jsx'
 import { SuppliesTab } from '../components/Supplies.jsx'
 import { HELP } from '../lib/help.js'
 import { withLog, DEFAULT_HOURS } from '../lib/analysis.js'
@@ -735,6 +736,7 @@ function EventsTab() {
           </div>
         )
       })()}
+      <NotesHistory />
       <div className="card">
         <h4>從展覽清單建立<Help>{HELP.expos}</Help></h4>
         {expos === null ? <p className="muted">讀取中…</p> : !openExpos.length ? (

@@ -11,6 +11,7 @@ import Icon from '../components/Icon.jsx'
 import { sortCats } from '../lib/template.js'
 import Help from '../components/Help.jsx'
 import useStickTop from '../components/useStickTop.js'
+import EventNotes from '../components/Notes.jsx'
 import { HELP } from '../lib/help.js'
 import { supplyRows, DailyTable } from '../components/Supplies.jsx'
 
@@ -78,7 +79,7 @@ export default function Summary() {
         <button onClick={() => exportEventExcel(s).catch((e) => ui.toast('下載失敗：' + e.message, { kind: 'error' }))}>下載 Excel</button>
       </div>
       <div className="tabs scroll sec-tabs">
-        {[['all', '全部'], ['money', '營業額'], ['detail', '金額明細'], ['hot', '熱賣'], ['items', '各品項銷售'], ['progress', '完售進度'], ['soldout', '低庫存・完售'], ['supplies', '耗材']].map(([k, v]) => (
+        {[['all', '全部'], ['money', '營業額'], ['detail', '金額明細'], ['hot', '熱賣'], ['items', '各品項銷售'], ['progress', '完售進度'], ['soldout', '低庫存・完售'], ['supplies', '耗材'], ['notes', '心得']].map(([k, v]) => (
           <button key={k} className={sec === k ? 'on' : ''} onClick={() => { setSec(k); document.querySelector('main')?.scrollTo({ top: 0 }) }}>{v}</button>
         ))}
       </div>
@@ -239,6 +240,8 @@ export default function Summary() {
       </div>
       <DailyTable readOnly />
       </>}
+
+      {show('notes') && <EventNotes />}
     </div>
   )
 }

@@ -32,8 +32,9 @@ service cloud.firestore {
       match /events/{eventId} {
         allow delete: if isAdmin() && expiredEnd(resource.data.end);
       }
+      // 系統管理者可讀商品、場次等設定；讀不到展場心得（notes）
       match /{coll}/{docId} {
-        allow read: if isAdmin();
+        allow read: if isAdmin() && coll != 'notes';
       }
     }
     // 展覽清單（所有攤商共用）：只有名稱、日期、營業時間；登入者都能讀
