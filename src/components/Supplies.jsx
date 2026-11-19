@@ -114,7 +114,11 @@ export function SuppliesTab() {
 
       <div className="card">
         <h4>耗材清單（每個場次共用）</h4>
-        <p className="muted small">按住左邊 ⋮⋮ 上下拖曳換順序。右邊開關關掉＝這次不帶，清單保留，上面表格、收攤提醒、總結與 Excel 都不顯示；下次要用再打開（所有場次共用）。</p>
+        <ul className="muted small supply-legend">
+          <li><b>每天記錄</b>：打勾的項目，每天收攤點零錢時會問「今天用了多少」（例：波爾水），上面「每日用量」表也會列出。</li>
+          <li><b>右邊開關</b>：這次展覽有沒有用到這個耗材。關掉＝這次不帶，名稱保留在清單裡，但上面的表格、收攤點算、總結與 Excel 都不顯示；下次要用再打開。</li>
+          <li>按住左邊 ⋮⋮ 上下拖曳換順序。清單所有場次共用。</li>
+        </ul>
         <SortGroup items={items} onDrop={(a, b) => { const next = [...items]; const [x] = next.splice(a, 1); next.splice(b, 0, x); saveItems(next) }}>
           {(it, i, grip) => (
             <div key={it.id} data-sort className={'supply-item-row' + (it.active === false ? ' off' : '')}>
@@ -122,7 +126,7 @@ export function SuppliesTab() {
               <input defaultValue={it.name} key={it.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.name) rename(it, { name: v }) }} />
               <UnitPicker value={it.unit} onChange={(v) => v !== it.unit && rename(it, { unit: v })} />
               <label className="check small daily-check" title="每天收攤點零錢時填今天用了多少（例：波爾水）"><input type="checkbox" checked={!!it.daily} onChange={(e) => rename(it, { daily: e.target.checked })} />每天記錄</label>
-              <Switch checked={it.active !== false} onChange={(v) => rename(it, { active: v })} />
+              <Switch checked={it.active !== false} onChange={(v) => rename(it, { active: v })} label={it.active !== false ? '這次有用' : '這次不用'} />
               <button className="small-btn ghost" onClick={() => remove(it)}>移除</button>
             </div>
           )}

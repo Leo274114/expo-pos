@@ -794,3 +794,17 @@ body.dragging-now, body.dragging-now * { user-select: none !important; -webkit-u
 .close-usage h5 { margin: 0 0 8px; font-size: 15px; }
 .close-usage .usage-row { display: grid; grid-template-columns: 1fr 90px auto; align-items: center; gap: 10px; margin: 6px 0; font-weight: 600; }
 .close-usage .usage-row input.num { width: 100%; text-align: right; font-size: 18px; }
+
+.supply-legend { margin: 4px 0 10px; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.supply-legend b { color: var(--ink, inherit); }
+.supply-item-row .switch em { width: 4.6em; font-size: 12px; white-space: nowrap; }
+@media (max-width: 600px) {
+  .supply-item-row[data-sort] { flex-wrap: wrap; row-gap: 6px; padding-bottom: 8px; border-bottom: 1px dashed var(--line); }
+  .supply-item-row[data-sort] > input { flex: 1 1 calc(100% - 60px); }
+  .supply-item-row[data-sort] { column-gap: 6px; }
+  .supply-item-row[data-sort] > select.supply-unit { flex: 0 0 66px; }
+  .supply-item-row[data-sort] .daily-check { font-size: 12px; }
+  .supply-item-row[data-sort] .switch { gap: 4px; }
+  .supply-item-row[data-sort] .switch em { width: auto; }
+  .supply-item-row[data-sort] > button { margin-left: auto; padding-left: 6px; padding-right: 6px; }
+}
