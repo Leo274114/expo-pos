@@ -20,13 +20,20 @@ const saveSupply = (s, item, patch) => {
     { name: item.name, unit: item.unit || '', ...patch, ts: Date.now(), device: deviceId }, { merge: true }))
 }
 
+// 耗材數量可到小數點一位（例：波爾水 1.5 桶）；全形句點、逗號也當小數點
+export const oneDecimal = (t) => {
+  const s = String(t).replace(/[．。,，]/g, '.').replace(/[^\d.]/g, '')
+  const [a, ...rest] = s.split('.')
+  return rest.length ? `${a}.${rest.join('').slice(0, 1)}` : a
+}
+
 function NumInput({ value, onSave, placeholder }) {
   const [v, setV] = useState(value ?? '')
   useEffect(() => setV(value ?? ''), [value])
   return (
-    <input className="num" inputMode="numeric" value={v} placeholder={placeholder}
-      onChange={(e) => setV(e.target.value.replace(/[^\d]/g, ''))}
-      onBlur={() => { const n = v === '' ? null : Number(v); if (n !== (value ?? null)) onSave(n) }} />
+    <input className="num" inputMode="decimal" value={v} placeholder={placeholder}
+      onChange={(e) => setV(oneDecimal(e.target.value))}
+      onBlur={() => { const n = v === '' || v === '.' ? null : Math.round(Number(v) * 10) / 10; if (n !== (value ?? null)) onSave(n) }} />
   )
 }
 

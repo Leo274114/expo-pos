@@ -184,3 +184,10 @@ test('內建耗材：舊攤位補上波爾水與悅氏，移除過的不補', as
   assert.deepEqual(mergeSupplies(old, ['water-yes']).map((x) => x.id), ['cup', 'water-bor'])
   assert.equal(mergeSupplies(undefined).length, 5)
 })
+
+test('耗材小數一位：每日合計與用量四捨五入', async () => {
+  const { supplyRows } = await import('../src/lib/calc.js')
+  const [r] = supplyRows([{ id: 'w', name: '波爾水', unit: '桶', daily: true }], { w: { prep: 5, left: 1.7, daily: { a: 1.1, b: 2.2 } } })
+  assert.equal(r.dailyTotal, 3.3)
+  assert.equal(r.used, 3.3)
+})

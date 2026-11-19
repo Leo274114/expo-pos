@@ -380,7 +380,8 @@ export function supplyRows(items = [], records = {}) {
     // 每天記錄的耗材（例：水）：每天用量與合計
     const daily = Object.fromEntries(Object.entries(x.daily || {}).filter(([, v]) => v != null && v !== '').map(([d, v]) => [d, Number(v)]))
     const dailyVals = Object.values(daily)
-    const dailyTotal = dailyVals.length ? dailyVals.reduce((a, b) => a + b, 0) : null
-    return { id: x.id, name: x.name, unit: x.unit || '', prep, left, used: prep != null && left != null ? prep - left : null, isDaily: !!x.isDaily || dailyVals.length > 0, daily, dailyTotal }
+    const r1 = (n) => Math.round(n * 10) / 10
+    const dailyTotal = dailyVals.length ? r1(dailyVals.reduce((a, b) => a + b, 0)) : null
+    return { id: x.id, name: x.name, unit: x.unit || '', prep, left, used: prep != null && left != null ? r1(prep - left) : null, isDaily: !!x.isDaily || dailyVals.length > 0, daily, dailyTotal }
   })
 }
