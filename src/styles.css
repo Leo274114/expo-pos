@@ -788,3 +788,9 @@ body.dragging-now, body.dragging-now * { user-select: none !important; -webkit-u
 .perday-table { width: 100%; }
 .perday-table th.num, .perday-table td.num { text-align: right; white-space: nowrap; }
 .perday-table .perday-total td { font-weight: 800; border-top: 2px solid var(--line); }
+
+/* 收攤點算卡片：今天用了多少（每天記錄的耗材） */
+.close-usage { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.close-usage h5 { margin: 0 0 8px; font-size: 15px; }
+.close-usage .usage-row { display: grid; grid-template-columns: 1fr 90px auto; align-items: center; gap: 10px; margin: 6px 0; font-weight: 600; }
+.close-usage .usage-row input.num { width: 100%; text-align: right; font-size: 18px; }

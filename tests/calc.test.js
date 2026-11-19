@@ -175,3 +175,12 @@ test('預購品項統計：累加數量與單數，只列有預購的品項', ()
   assert.deepEqual(r.map((x) => [x.skuId, x.qty, x.orders]), [['c', 3, 1], ['a', 4, 2]])
   assert.equal(r.find((x) => x.skuId === 'c').category, '濾掛')
 })
+
+test('內建耗材：舊攤位補上波爾水與悅氏，移除過的不補', async () => {
+  const { mergeSupplies } = await import('../src/lib/template.js')
+  const old = [{ id: 'cup', name: '試飲杯' }]
+  assert.deepEqual(mergeSupplies(old).map((x) => x.id), ['cup', 'water-bor', 'water-yes'])
+  assert.equal(mergeSupplies(old).find((x) => x.id === 'water-bor').daily, true)
+  assert.deepEqual(mergeSupplies(old, ['water-yes']).map((x) => x.id), ['cup', 'water-bor'])
+  assert.equal(mergeSupplies(undefined).length, 5)
+})

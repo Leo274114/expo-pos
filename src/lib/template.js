@@ -72,6 +72,16 @@ export function textOn(hex) {
 export const DEFAULT_SUPPLIES = [
   { id: 'cup', name: '試飲杯', unit: '條' },
   { id: 'filter', name: '濾紙', unit: '包' },
-  { id: 'bag', name: '手提袋', unit: '個' }
+  { id: 'bag', name: '手提袋', unit: '個' },
+  { id: 'water-bor', name: '波爾水', unit: '桶', daily: true },
+  { id: 'water-yes', name: '悅氏', unit: '桶', daily: false }
 ]
+// v0.32 新增的內建耗材：舊攤位也自動補上（攤主移除過的不再補）
+const ADDED_LATER = ['water-bor', 'water-yes']
+export function mergeSupplies(items, removed = []) {
+  if (!items) return DEFAULT_SUPPLIES
+  const have = new Set(items.map((x) => x.id))
+  const gone = new Set(removed || [])
+  return [...items, ...DEFAULT_SUPPLIES.filter((x) => ADDED_LATER.includes(x.id) && !have.has(x.id) && !gone.has(x.id))]
+}
 export const SUPPLY_UNITS = ['條', '包', '個', '盒', '張', '桶', '台']

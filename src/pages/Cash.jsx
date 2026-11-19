@@ -80,11 +80,13 @@ export default function Cash() {
         <div className="grid2">
           <CountForm key={'o' + day + (open?.ts || '') + (prev?.ts || '')} title="開店零用金" data={open} prefill={prev}
             denoms={denomsFor(s.settings)} onSave={(c) => saveCount('open', c)} onDirty={(v) => setDirty((d) => (d.open === v ? d : { ...d, open: v }))} />
-          <CountForm key={'c' + day + (close?.ts || '')} title="收攤點算" data={close} denoms={denomsFor(s.settings)} onSave={(c) => saveCount('close', c)} onDirty={(v) => setDirty((d) => (d.close === v ? d : { ...d, close: v }))} />
+          <CountForm key={'c' + day + (close?.ts || '')} title="收攤點算" data={close} denoms={denomsFor(s.settings)} onSave={(c) => saveCount('close', c)} onDirty={(v) => setDirty((d) => (d.close === v ? d : { ...d, close: v }))}>
+            <DailyUsage day={day} inline />
+          </CountForm>
         </div>
       ) : <p className="muted">零錢數量管理已關閉，只計算現金總額。</p>}
 
-      <DailyUsage day={day} />
+      {!s.settings.cashCount && <DailyUsage day={day} />}
       {s.settings.cashCount && close && <SupplyLeftReminder day={day} />}
       {(close || !s.settings.cashCount) && (
         <div className="card">
@@ -187,7 +189,7 @@ function PayCheck({ method, day }) {
   )
 }
 
-function CountForm({ title, data, prefill, denoms, onSave, onDirty }) {
+function CountForm({ title, data, prefill, denoms, onSave, onDirty, children }) {
   const [c, setC] = useState(() => ({ ...(data?.counts || prefill?.counts || {}) }))
   const total = countTotal(c)
   // 跟已儲存的數量不一樣（帶入的前次數量也算還沒存）
@@ -213,6 +215,7 @@ function CountForm({ title, data, prefill, denoms, onSave, onDirty }) {
         <button className={'primary' + (dirty ? ' unsaved' : '')} onClick={() => onSave(Object.fromEntries(Object.entries(c).map(([k, v]) => [k, Number(v) || 0])))}>儲存</button>
         {dirty && <span className="unsaved-note">尚未儲存</span>}
       </div>
+      {children}
     </div>
   )
 }

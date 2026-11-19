@@ -3,7 +3,7 @@ import { collection, doc, getDocs, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useShop, useUi, commit, deviceId } from '../store.jsx'
 import { SUPPLY_UNITS } from '../lib/template.js'
-import { supplyRows as calcSupplyRows, daysBetween } from '../lib/calc.js'
+import { supplyRows as calcSupplyRows, daysBetween, today } from '../lib/calc.js'
 import Help from './Help.jsx'
 import SortGroup from './SortGroup.jsx'
 import { Switch } from '../pages/Admin.jsx'
@@ -65,7 +65,7 @@ export function SuppliesTab() {
   const rename = (it, patch) => saveItems(items.map((x) => (x.id === it.id ? { ...x, ...patch } : x)))
   const remove = (it) => {
     if (!confirm(`從清單移除「${it.name}」？已記錄的場次資料會保留。`)) return
-    saveItems(items.filter((x) => x.id !== it.id))
+    commit(writeBatch(db).set(doc(db, s.shopPath), { supplyItems: items.filter((x) => x.id !== it.id), supplyRemoved: [...new Set([...(s.shop?.supplyRemoved || []), it.id])] }, { merge: true }))
   }
 
   if (!s.eventId) return <div className="warn">請先建立展覽場次。</div>
@@ -114,7 +114,7 @@ export function SuppliesTab() {
               {grip}
               <input defaultValue={it.name} key={it.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.name) rename(it, { name: v }) }} />
               <UnitPicker value={it.unit} onChange={(v) => v !== it.unit && rename(it, { unit: v })} />
-              <label className="check small daily-check" title="每天收攤時記錄用量（例：水）"><input type="checkbox" checked={!!it.daily} onChange={(e) => rename(it, { daily: e.target.checked })} />每天記錄</label>
+              <label className="check small daily-check" title="每天收攤點零錢時填今天用了多少（例：波爾水）"><input type="checkbox" checked={!!it.daily} onChange={(e) => rename(it, { daily: e.target.checked })} />每天記錄</label>
               <Switch checked={it.active !== false} onChange={(v) => rename(it, { active: v })} />
               <button className="small-btn ghost" onClick={() => remove(it)}>移除</button>
             </div>
@@ -188,11 +188,25 @@ export function DailyTable({ readOnly = false }) {
 }
 
 // 零錢頁：每天記錄的耗材，問今天用了多少（可以換日期補填）
-export function DailyUsage({ day }) {
+export function DailyUsage({ day, inline }) {
   const s = useShop()
   const rows = supplyRows(s).filter((r) => r.isDaily && s.supplyItems.find((x) => x.id === r.id)?.active !== false)
   if (!rows.length) return null
   const byId = Object.fromEntries(s.supplyItems.map((x) => [x.id, x]))
+  // 放在收攤點算卡片裡：「今天用了 □ 桶」
+  if (inline) return (
+    <div className="close-usage">
+      <h5>{day === today() ? '今天用了' : `${day.slice(5).replace('-', '/')} 用了`}</h5>
+      {rows.map((r) => (
+        <label key={r.id} className="usage-row">
+          <span>{r.name}</span>
+          <NumInput value={r.daily[day]} placeholder="0" onSave={(n) => saveSupply(s, byId[r.id] || r, { daily: { [day]: n } })} />
+          <span className="muted">{r.unit}</span>
+        </label>
+      ))}
+      <p className="muted small">填完離開欄位就自動存，不用按上面的儲存。要統計哪些在「管理 → 耗材」勾「每天記錄」。</p>
+    </div>
+  )
   return (
     <div className="card supply-reminder">
       <h4 style={{ marginTop: 0 }}>{day.slice(5).replace('-', '/')} 用了多少</h4>

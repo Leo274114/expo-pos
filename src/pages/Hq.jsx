@@ -128,7 +128,7 @@ export default function Hq() {
 
       <ExpoGroups shops={all} />
 
-      <PurgeExpired shops={all} onDone={load} />
+      <PurgeExpired shops={all.filter((x) => x.id !== s.shopId)} onDone={load} />
 
     </div>
   )

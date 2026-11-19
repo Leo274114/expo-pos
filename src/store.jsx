@@ -3,7 +3,7 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { collection, doc, getDoc, onSnapshot, setDoc, writeBatch } from 'firebase/firestore'
 import { auth, db } from './firebase.js'
 import { DEFAULT_SETTINGS, computeStock, skuLabel, addDays, today } from './lib/calc.js'
-import { DEFAULT_SUPPLIES } from './lib/template.js'
+import { mergeSupplies } from './lib/template.js'
 
 // ---------- 提示訊息 ----------
 const UiCtx = createContext(null)
@@ -157,7 +157,7 @@ export function ShopProvider({ children }) {
     }
     const stock = computeStock(ev.stockInit, ev.orders, ev.adjustments)
     const event = events.find((e) => e.id === eventId) || null
-    const supplyItems = shop?.supplyItems || DEFAULT_SUPPLIES
+    const supplyItems = mergeSupplies(shop?.supplyItems, shop?.supplyRemoved)
     return {
       user, isAdmin, shop, shopId, shopPath, settings, optionLists, products, skus, events, notes, event, eventId, eventPath,
       productById, skuById, labelOf, stock, loaded, ...ev, supplyItems,
