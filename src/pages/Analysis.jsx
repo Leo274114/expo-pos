@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useShop } from '../store.jsx'
-import { today, soldOutTimes } from '../lib/calc.js'
-import { buildSeries, hoursFor, tsAt, hmOf, fmtAmount } from '../lib/analysis.js'
+import { today, soldOutTimes, preIndex, skuLabel, fmt } from '../lib/calc.js'
+import { buildSeries, hoursFor, tsAt, hmOf, fmtAmount, eventItemTotals } from '../lib/analysis.js'
 import { sortCats } from '../lib/template.js'
 import DaySelect, { eventDays } from '../components/DaySelect.jsx'
 import SalesCurve from '../components/SalesCurve.jsx'
@@ -22,6 +22,8 @@ export default function Analysis() {
   const store = `analysisSel:${s.shopId}`
   const [sel, setSel] = useState(() => { try { return JSON.parse(localStorage.getItem(store)) || null } catch { return null } })
   const [msg, setMsg] = useState('')
+  const [totSort, setTotSortRaw] = useState(() => { try { return localStorage.getItem('an-tot-sort') || 'order' } catch { return 'order' } })
+  const setTotSort = (v) => { setTotSortRaw(v); try { localStorage.setItem('an-tot-sort', v) } catch { /* 忽略 */ } }
 
   const h = hoursFor(s.event, day)
   const open = tsAt(day, h.open), close = tsAt(day, h.close)
@@ -57,6 +59,9 @@ export default function Analysis() {
     setSel([...cur, k])
   }
 
+  // 整個展期：各組合的數量與金額
+  const totals = useMemo(() => eventItemTotals(s.orders, preIndex(s.orders)), [s.orders])
+
   if (!s.eventId) return <div className="page"><div className="warn">請先建立展覽場次。</div></div>
 
   const byCat = {}
@@ -65,6 +70,18 @@ export default function Analysis() {
   const cats = sortCats(Object.keys(byCat), s.settings.catOrder)
   const shownRows = ranked.filter((x) => selected.includes(x.key))
   const unitOf = (x) => (mode === 'grams' ? '' : x.unit)
+
+  const skuById = Object.fromEntries(s.skus.map((k, i) => [k.id, { k, i }]))
+  const pIdx = Object.fromEntries(s.products.map((p, i) => [p.id, i]))
+  const posOf = (r) => { const x = skuById[r.skuId]; return x ? (pIdx[x.k.productId] ?? 999) * 10000 + x.i : Infinity }
+  const totRows = totals.rows.map((r) => {
+    const x = skuById[r.skuId]
+    return { ...r, label: x ? skuLabel(x.k, s.productById[x.k.productId]) : r.name, unit: (x && s.productById[x.k.productId]?.unit) || '', pos: posOf(r) }
+  }).sort((a, b) => (totSort === 'amount' ? b.amount - a.amount : a.pos - b.pos) || a.label.localeCompare(b.label))
+  const totCats = {}
+  for (const r of totRows) { const c = (totCats[r.category] ||= { qty: 0, amount: 0, rows: [] }); c.rows.push(r); c.qty += r.qty; c.amount += r.amount }
+  const totCatKeys = sortCats(Object.keys(totCats), s.settings.catOrder)
+  const totAmount = totRows.reduce((a, r) => a + r.amount, 0)
 
   return (
     <div className="page analysis">
@@ -141,6 +158,38 @@ export default function Analysis() {
             )}
           </>
         )}
+      </div>
+
+      <div className="card an-totals">
+        <div className="row between wrap">
+          <h3 style={{ margin: 0 }}>整個展期品項數量與金額<Help>{HELP.analysisTotals}</Help></h3>
+          <div className="seg small-seg">
+            <button className={totSort === 'order' ? 'on' : ''} onClick={() => setTotSort('order')}>商品順序</button>
+            <button className={totSort === 'amount' ? 'on' : ''} onClick={() => setTotSort('amount')}>金額高到低</button>
+          </div>
+        </div>
+        {!totRows.length ? <p className="muted">展期內還沒有銷售。</p> : (
+          <table>
+            <thead><tr><th>品項</th><th className="num">數量</th><th className="num">金額</th></tr></thead>
+            <tbody>
+              {totCatKeys.map((c) => [
+                <tr key={c} className="cat-row"><td>{c}</td><td className="num">{totCats[c].qty}</td><td className="num">{fmt(totCats[c].amount)}</td></tr>,
+                ...totCats[c].rows.map((r) => (
+                  <tr key={r.skuId || r.name}>
+                    <td>{r.label.replace(c + '・', '')}{r.preQty > 0 && <span className="muted small">（含預購 {r.preQty}）</span>}</td>
+                    <td className="num">{r.qty} {r.unit}</td>
+                    <td className="num strong">{fmt(r.amount)}</td>
+                  </tr>
+                ))
+              ])}
+              <tr className="an-total-row"><td>合計</td><td className="num"></td><td className="num">{fmt(totAmount)}</td></tr>
+            </tbody>
+          </table>
+        )}
+        <p className="muted small an-note">
+          整個展期、不分日期・數量含預購（取消的不算）並扣掉退貨・不含贈與與沖泡・金額是實售價（含改價），
+          {totals.orderDiscount > 0 ? `整單折扣共 ${fmt(totals.orderDiscount)} 沒有分到各品項` : '整單折扣不分到各品項'}
+        </p>
       </div>
     </div>
   )

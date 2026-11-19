@@ -137,3 +137,30 @@ export function spreadLabels(items, gap = 15, top = 0, bottom = Infinity) {
 export const fmtAmount = (v, mode) => mode === 'grams'
   ? (v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} kg` : `${Math.round(v)} g`)
   : `${Math.round(v * 10) / 10}`
+
+// 整個展期各組合（含重量）的銷售數量與金額
+// 數量＝現貨＋預購（取消的預購不算）−退回；金額＝實售價合計−退款；不含贈與、沖泡、作廢
+// 回傳 { rows: [{ skuId, name, category, qty, preQty, amount }], orderDiscount }
+export function eventItemTotals(orders = [], preOf = () => null) {
+  const map = {}
+  let orderDiscount = 0
+  const row = (it) => (map[it.skuId || it.name] ||= { skuId: it.skuId, name: it.name, category: it.category || '其他', qty: 0, preQty: 0, amount: 0 })
+  for (const o of orders) {
+    if (o.status === 'void') continue
+    if (o.type !== 'sale' && o.type !== 'exchange' && o.type !== 'return') continue
+    if (preOf(o)?.cancelled) continue
+    if (o.type !== 'return') {
+      orderDiscount += o.discountAmt || 0
+      for (const it of o.items || []) {
+        const r = row(it), q = Number(it.qty) || 0
+        r.qty += q; if (it.pre) r.preQty += q
+        r.amount += (Number(it.price) || 0) * q
+      }
+    }
+    for (const x of o.rets || []) {
+      const r = row(x), q = Number(x.qty) || 0
+      r.qty -= q; r.amount -= (Number(x.price) || 0) * q
+    }
+  }
+  return { rows: Object.values(map).filter((r) => r.qty !== 0 || r.amount !== 0), orderDiscount }
+}

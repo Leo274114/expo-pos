@@ -778,3 +778,9 @@ body.dragging-now, body.dragging-now * { user-select: none !important; -webkit-u
 .pre-tally table { width: 100%; margin-top: 8px; }
 .pre-tally td:first-child { white-space: normal; overflow-wrap: anywhere; }
 .pre-tally th.num, .pre-tally td.num { text-align: right; width: 4.5em; }
+
+/* 分析：整個展期品項數量與金額 */
+.an-totals table { width: 100%; margin-top: 8px; }
+.an-totals td:first-child { white-space: normal; overflow-wrap: anywhere; }
+.an-totals th.num, .an-totals td.num { text-align: right; white-space: nowrap; }
+.an-totals .an-total-row td { font-weight: 800; border-top: 2px solid var(--line); }

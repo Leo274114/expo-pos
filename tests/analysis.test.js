@@ -72,3 +72,21 @@ test('得獎的和一般的分成兩個比較品項', () => {
   assert.notEqual(a.key, c.key)
   assert.equal(a.name, '咖啡豆・金質獎・SL-34・日曬')
 })
+
+test('整個展期品項數量與金額：含預購、扣退貨，不含贈與、作廢、取消的預購', async () => {
+  const { eventItemTotals } = await import('../src/lib/analysis.js')
+  const it = (skuId, qty, price, extra = {}) => ({ skuId, name: skuId, category: '咖啡豆', qty, price, listPrice: price, ...extra })
+  const orders = [
+    { id: '1', type: 'sale', items: [it('a', 2, 1000), it('d', 5, 40)], discountAmt: 100 },
+    { id: '2', type: 'sale', items: [it('a', 1, 900, { pre: true })], pre: {} },
+    { id: '3', type: 'sale', items: [it('a', 9, 1000)], status: 'void' },
+    { id: '4', type: 'gift', items: [it('a', 1, 1000)] },
+    { id: '5', type: 'return', items: [], rets: [it('d', 1, 40)] },
+    { id: '6', type: 'sale', items: [it('a', 3, 1000, { pre: true })], pre: {} }
+  ]
+  const { rows, orderDiscount } = eventItemTotals(orders, (o) => (o.pre ? { cancelled: o.id === '6' } : null))
+  const a = rows.find((r) => r.skuId === 'a'), d = rows.find((r) => r.skuId === 'd')
+  assert.deepEqual([a.qty, a.preQty, a.amount], [3, 1, 2900])
+  assert.deepEqual([d.qty, d.amount], [4, 160])
+  assert.equal(orderDiscount, 100)
+})
