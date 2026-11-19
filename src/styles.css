@@ -784,3 +784,7 @@ body.dragging-now, body.dragging-now * { user-select: none !important; -webkit-u
 .an-totals td:first-child { white-space: normal; overflow-wrap: anywhere; }
 .an-totals th.num, .an-totals td.num { text-align: right; white-space: nowrap; }
 .an-totals .an-total-row td { font-weight: 800; border-top: 2px solid var(--line); }
+.sales-curve .sc-day { stroke: var(--line); stroke-dasharray: 3 3; }
+.perday-table { width: 100%; }
+.perday-table th.num, .perday-table td.num { text-align: right; white-space: nowrap; }
+.perday-table .perday-total td { font-weight: 800; border-top: 2px solid var(--line); }

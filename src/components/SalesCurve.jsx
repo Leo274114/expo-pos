@@ -16,7 +16,8 @@ function niceStep(max) {
   return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p
 }
 
-export default function SalesCurve({ series, selected, view, mode, open, close, colorOf, resetKey }) {
+// ticks（整個展期用）：[{ t, label }]，時鐘時間的橫軸改成每天一段，並畫分隔線
+export default function SalesCurve({ series, selected, view, mode, open, close, colorOf, resetKey, ticks }) {
   const refs = { ax: useRef(null), ar: useRef(null), ln: useRef(null), mk: useRef(null) }
   const st = useRef({ prev: new Set(), prevView: view, yOld: 1, raf: 0, resetKey: null, colors: {} })
   // 依實際寬度畫（手機上文字才不會被縮得太小）
@@ -61,9 +62,15 @@ export default function SalesCurve({ series, selected, view, mode, open, close, 
         ax += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" class="sc-grid"/><text x="${L - 8}" y="${y + 4}" text-anchor="end" class="sc-tick">${unitLabel(Math.round(v))}</text>`
       }
       const hourMs = 3600000
-      const every = PW / (X / hourMs) < 44 ? 2 : 1
+      const every = Math.max(1, Math.ceil(44 / (PW / (X / hourMs))))
       if (view === 'E') {
         for (let m = 0; m <= X + 1; m += hourMs * every) ax += `<text x="${L + (m / X) * PW}" y="${H - 9}" text-anchor="middle" class="sc-tick">${m / hourMs}h</text>`
+      } else if (ticks) {
+        for (const tk of ticks) {
+          const x = L + ((tk.t - open) / X) * PW
+          if (tk.t > open) ax += `<line x1="${x}" x2="${x}" y1="${T}" y2="${T + PH}" class="sc-day"/>`
+          ax += `<text x="${x + 4}" y="${H - 9}" text-anchor="start" class="sc-tick">${tk.label}</text>`
+        }
       } else {
         const first = Math.ceil(open / hourMs) * hourMs
         for (let t = first; t <= close; t += hourMs * every) ax += `<text x="${L + ((t - open) / X) * PW}" y="${H - 9}" text-anchor="middle" class="sc-tick">${hmOf(t)}</text>`
@@ -93,7 +100,7 @@ export default function SalesCurve({ series, selected, view, mode, open, close, 
           const lp = P[P.length - 1]
           if (e > 650) mk += `<circle cx="${lp[0]}" cy="${lp[1]}" r="4.5" fill="${c}" stroke="#fff" stroke-width="2"/>`
           if (view === 'C' && e > 650) mk += `<line x1="${P[0][0]}" x2="${P[0][0]}" y1="${T + PH}" y2="${T + PH - 6}" stroke="${c}" stroke-width="2"/>`
-          if (s.soldOutTs && e > 700) labels.push({ x: lp[0], y: lp[1] - 8, text: `完售 ${hmOf(s.soldOutTs)}`, c })
+          if (s.soldOutTs && e > 700) labels.push({ x: lp[0], y: lp[1] - 8, text: `完售 ${s.soldOutText || hmOf(s.soldOutTs)}`, c })
         }
       })
       // 完售標籤：互相錯開，不重疊
@@ -113,7 +120,7 @@ export default function SalesCurve({ series, selected, view, mode, open, close, 
     cancelAnimationFrame(S.raf)
     S.raf = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(S.raf)
-  }, [series, selected.join('|'), view, mode, open, close, resetKey, W])
+  }, [series, selected.join('|'), view, mode, open, close, resetKey, W, ticks])
 
   return (
     <div ref={box}>

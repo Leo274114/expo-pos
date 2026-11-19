@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useShop } from '../store.jsx'
 import { today, soldOutTimes, preIndex, skuLabel, fmt } from '../lib/calc.js'
-import { buildSeries, hoursFor, tsAt, hmOf, fmtAmount, eventItemTotals } from '../lib/analysis.js'
+import { buildSeries, hoursFor, tsAt, hmOf, mdOf, timeline, fmtAmount, eventItemTotals } from '../lib/analysis.js'
 import { sortCats } from '../lib/template.js'
-import DaySelect, { eventDays } from '../components/DaySelect.jsx'
+import DaySelect, { eventDays, eventOnlyDays, ALL } from '../components/DaySelect.jsx'
 import SalesCurve from '../components/SalesCurve.jsx'
 import Help from '../components/Help.jsx'
 import { HELP } from '../lib/help.js'
@@ -25,19 +25,25 @@ export default function Analysis() {
   const [totSort, setTotSortRaw] = useState(() => { try { return localStorage.getItem('an-tot-sort') || 'order' } catch { return 'order' } })
   const setTotSort = (v) => { setTotSortRaw(v); try { localStorage.setItem('an-tot-sort', v) } catch { /* 忽略 */ } }
 
-  const h = hoursFor(s.event, day)
-  const open = tsAt(day, h.open), close = tsAt(day, h.close)
+  const isAll = day === ALL
+  const h = hoursFor(s.event, isAll ? null : day)
+  // 整個展期：每天的營業時間接成一條時間軸
+  const segments = useMemo(() => (isAll ? eventOnlyDays(s.event).map((d) => { const x = hoursFor(s.event, d); return { day: d, open: tsAt(d, x.open), close: tsAt(d, x.close) } }) : null), [isAll, s.event])
+  const tl = segments ? timeline(segments) : null
+  const open = tl ? tl.open : tsAt(day, h.open), close = tl ? tl.close : tsAt(day, h.close)
+  const ticks = useMemo(() => (tl ? tl.segs.map((g) => ({ t: g.from, label: mdOf(g.open) })) : undefined), [segments])
+  const realTime = (t) => (isAll ? `${mdOf(t)} ${hmOf(t)}` : hmOf(t))
   const soldOut = useMemo(() => soldOutTimes(s.stockInit, s.orders, s.adjustments), [s.stockInit, s.orders, s.adjustments])
   const series = useMemo(() => buildSeries({
     orders: s.orders, skus: s.skus, productById: s.productById, optionLists: s.optionLists,
-    day, open, close, soldOut, stockInit: s.stockInit, mode
-  }), [s.orders, s.skus, s.productById, s.optionLists, day, open, close, soldOut, s.stockInit, mode])
+    day, open, close, segments, soldOut, stockInit: s.stockInit, mode
+  }), [s.orders, s.skus, s.productById, s.optionLists, day, open, close, segments, soldOut, s.stockInit, mode])
 
   // 公克模式下，沒有重量選項的品項（例：果皮茶、苦茶油）也列出來，點一下切到「件數」比較
   const qtySeries = useMemo(() => (mode === 'grams' ? buildSeries({
     orders: s.orders, skus: s.skus, productById: s.productById, optionLists: s.optionLists,
-    day, open, close, soldOut, stockInit: s.stockInit, mode: 'qty'
-  }) : []), [s.orders, s.skus, s.productById, s.optionLists, day, open, close, soldOut, s.stockInit, mode])
+    day, open, close, segments, soldOut, stockInit: s.stockInit, mode: 'qty'
+  }) : []), [s.orders, s.skus, s.productById, s.optionLists, day, open, close, segments, soldOut, s.stockInit, mode])
   const noWeight = qtySeries.filter((x) => !series.some((y) => y.key === x.key))
 
   const ranked = [...series].sort((a, b) => b.perHour - a.perHour)
@@ -86,7 +92,7 @@ export default function Analysis() {
   return (
     <div className="page analysis">
       <div className="row between wrap toolbar">
-        <DaySelect event={s.event} value={day} onChange={setDay} />
+        <DaySelect event={s.event} value={day} onChange={setDay} allowAll />
         <div className="seg">
           <button className={view === 'E' ? 'on' : ''} onClick={() => setView('E')}>從開賣起算</button>
           <button className={view === 'C' ? 'on' : ''} onClick={() => setView('C')}>時鐘時間</button>
@@ -101,12 +107,12 @@ export default function Analysis() {
         <div className="row between wrap">
           <h3 style={{ margin: 0 }}>品項銷售曲線<Help>{HELP.analysis}</Help></h3>
           <span className="muted small">
-            營業 {h.open}–{h.close}{h.custom ? '（當天另設）' : ''}
+            {isAll ? `${segments.length} 天，營業時間接起來（晚上不算）` : <>營業 {h.open}–{h.close}{h.custom ? '（當天另設）' : ''}</>}
             {!h.set && <>・<Link to="/admin?tab=2">設定營業時間</Link></>}
           </span>
         </div>
         {series.length === 0 && !noWeight.length ? (
-          <p className="muted">這一天還沒有可以比較的品項{mode === 'grams' ? '（「公克」只比較有重量選項的商品，可切換「件數」）' : ''}。</p>
+          <p className="muted">{isAll ? '展期內' : '這一天'}還沒有可以比較的品項{mode === 'grams' ? '（「公克」只比較有重量選項的商品，可切換「件數」）' : ''}。</p>
         ) : (
           <>
             <div className="an-quick">
@@ -135,10 +141,10 @@ export default function Analysis() {
                 })}
               </div>
             ))}
-            <SalesCurve series={series} selected={selected} view={view} mode={mode} open={open} close={close} colorOf={colorOf} resetKey={day + mode} />
+            <SalesCurve series={series} selected={selected} view={view} mode={mode} open={open} close={close} colorOf={colorOf} resetKey={day + mode} ticks={view === 'C' ? ticks : undefined} />
             <p className="muted small an-note">
               縱軸：累計售出{mode === 'grams' ? '公克（1/4 磅＝113 g、1/2 磅＝227 g）' : '件數'}・只算銷售，不含贈與、沖泡與預購・套裝與盒裝拆成組成品項計算
-              {view === 'C' ? '・還沒開賣的時段空白' : '・每條線都從各自開賣的時間起算'}
+              {view === 'C' ? '・還沒開賣的時段空白' : '・每條線都從各自開賣的時間起算'}{isAll ? '・橫軸只算營業時間，每天接著前一天收攤' : ''}
             </p>
             {shownRows.length > 0 && (
               <table className="an-rank">
@@ -147,8 +153,8 @@ export default function Analysis() {
                   {shownRows.map((x) => (
                     <tr key={x.key}>
                       <td><i className="an-sw" style={{ background: colorOf(x.key) }} /></td>
-                      <td>{x.name}{x.soldOutTs && <span className="badge red">完售 {hmOf(x.soldOutTs)}</span>}</td>
-                      <td className="muted">{hmOf(x.start)}</td>
+                      <td>{x.name}{x.soldOutTs && <span className="badge red">完售 {x.soldOutText}</span>}</td>
+                      <td className="muted">{realTime(x.startReal)}</td>
                       <td className="num">{fmtAmount(x.total, mode)} {unitOf(x)}</td>
                       <td className="num strong">{fmtAmount(x.perHour, mode)} {unitOf(x)}</td>
                     </tr>

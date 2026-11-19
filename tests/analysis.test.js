@@ -90,3 +90,29 @@ test('整個展期品項數量與金額：含預購、扣退貨，不含贈與�
   assert.deepEqual([d.qty, d.amount], [4, 160])
   assert.equal(orderDiscount, 100)
 })
+
+test('整個展期：營業時間接成一條時間軸，晚上跳過', async () => {
+  const { timeline } = await import('../src/lib/analysis.js')
+  const d1 = { day: '2026-11-13', open: tsAt('2026-11-13', '10:00'), close: tsAt('2026-11-13', '18:00') }
+  const d2 = { day: '2026-11-14', open: tsAt('2026-11-14', '10:00'), close: tsAt('2026-11-14', '17:00') }
+  const tl = timeline([d2, d1])
+  const H = 3600000
+  assert.equal(tl.close - tl.open, 15 * H)
+  assert.equal(tl.at(tsAt('2026-11-13', '12:00')) - tl.open, 2 * H)
+  assert.equal(tl.at(tsAt('2026-11-13', '22:00')) - tl.open, 8 * H) // 晚上停在第一天收攤
+  assert.equal(tl.at(tsAt('2026-11-14', '11:00')) - tl.open, 9 * H)
+  assert.equal(tl.at(tsAt('2026-11-14', '09:00')) - tl.open, 8 * H)
+})
+
+test('整個展期曲線：兩天的銷售累加', () => {
+  const skus = [{ id: 'k1', productId: 'p', opts: ['SL-34', '1/4磅'] }]
+  const productById = { p: { id: 'p', name: '咖啡豆', category: '咖啡豆', levels: ['variety', 'weight'] } }
+  const optionLists = [{ id: 'variety', name: '品種' }, { id: 'weight', name: '重量' }]
+  const seg = (d) => ({ day: d, open: tsAt(d, '10:00'), close: tsAt(d, '18:00') })
+  const sale = (d, hm, qty) => ({ type: 'sale', day: d, ts: tsAt(d, hm), items: [{ skuId: 'k1', qty }] })
+  const orders = [sale('2026-11-13', '11:00', 2), sale('2026-11-14', '11:00', 3), sale('2026-11-12', '11:00', 9)]
+  const [x] = buildSeries({ orders, skus, productById, optionLists, segments: [seg('2026-11-13'), seg('2026-11-14')], mode: 'qty', now: tsAt('2026-11-15', '12:00') })
+  assert.equal(x.total, 5)
+  assert.equal(x.end - x.start, 16 * 3600000)
+  assert.equal(x.pts[2][0] - x.start, 9 * 3600000)
+})

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useShop, useUi } from '../store.jsx'
 import { fmt, today, summarize, countTotal, expectedCash, skuLabel, soldOutTimes, timeOf } from '../lib/calc.js'
 import { exportEventExcel } from '../lib/excel.js'
-import DaySelect, { eventDays } from '../components/DaySelect.jsx'
+import DaySelect, { eventDays, eventOnlyDays, ALL } from '../components/DaySelect.jsx'
 import BarChart from '../components/BarChart.jsx'
 import LineChart from '../components/LineChart.jsx'
 import InView from '../components/InView.jsx'
@@ -20,13 +20,24 @@ export default function Summary() {
   const ui = useUi()
   useStickTop()
   const [day, setDay] = useState(today())
-  const [scope, setScope] = useState('day')
+  const [scopeRaw, setScope] = useState('day')
   // 上方功能捷徑：點了只顯示那一區（記在裝置上）
   const [sec, setSecRaw] = useState(() => { try { return localStorage.getItem('summary-sec') || 'all' } catch { return 'all' } })
   const setSec = (v) => { setSecRaw(v); try { localStorage.setItem('summary-sec', v) } catch { /* 忽略 */ } }
   const show = (k) => sec === 'all' || sec === k
   if (!s.eventId) return <div className="page"><div className="warn">請先建立展覽場次。</div></div>
-  const r = summarize(s.orders, day)
+  // 選「整個展期」：所有日期加總
+  const isAll = day === ALL
+  const scope = isAll ? 'event' : scopeRaw
+  const dayLabel = isAll ? '整個展期' : day === today() ? '今天' : day.slice(5).replace('-', '/')
+  const r = summarize(s.orders, isAll ? undefined : day)
+  const perDay = isAll ? [...new Set([...eventOnlyDays(s.event), ...s.orders.filter((o) => o.status !== 'void' && o.money?.amount).map((o) => o.day)])].sort()
+    .map((d) => {
+      const x = summarize(s.orders, d)
+      const o = s.cashCounts[`${d}_open`], c = s.cashCounts[`${d}_close`]
+      const ex = expectedCash(s.orders, d, o ? countTotal(o.counts) : 0, s.cashMoves)
+      return { d, rev: x.revenue, n: x.orderCount, expected: ex.expected, counted: c ? countTotal(c.counts) : null, opened: !!o }
+    }) : []
 
   // 每小時：取有營業的時段，至少 10–18 點
   const hours = Object.keys(r.hourly).map(Number)
@@ -68,14 +79,14 @@ export default function Summary() {
     .filter((x) => x.init > 0 && (s.productById[x.k.productId]?.active !== false && x.k.active !== false || x.used > 0))
     .sort((a, b) => b.pct - a.pct || a.left - b.left)
 
-  const open = s.cashCounts[`${day}_open`], close = s.cashCounts[`${day}_close`]
+  const open = !isAll && s.cashCounts[`${day}_open`], close = !isAll && s.cashCounts[`${day}_close`]
   const exp = expectedCash(s.orders, day, open ? countTotal(open.counts) : 0, s.cashMoves)
   const diff = close ? countTotal(close.counts) - exp.expected : null
 
   return (
     <div className="page summary">
       <div className="row between wrap toolbar">
-        <DaySelect event={s.event} value={day} onChange={setDay} />
+        <DaySelect event={s.event} value={day} onChange={setDay} allowAll />
         <button onClick={() => exportEventExcel(s).catch((e) => ui.toast('下載失敗：' + e.message, { kind: 'error' }))}>下載 Excel</button>
       </div>
       <div className="tabs scroll sec-tabs">
@@ -86,7 +97,7 @@ export default function Summary() {
 
       {show('money') && <>
       <div className="kpis">
-        <div className="kpi main"><span>今日營業額</span><b><CountUp key={day} value={r.revenue.total} /></b></div>
+        <div className="kpi main"><span>{isAll ? '展期總營業額' : day === today() ? '今日營業額' : `${dayLabel} 營業額`}</span><b><CountUp key={day} value={r.revenue.total} /></b></div>
         <div className="kpi"><span><Icon name="cash" size={18} />現金</span><b><CountUp key={day} value={r.revenue.cash || 0} /></b></div>
         <div className="kpi"><span><Icon name="phonepay" size={18} />LINE Pay</span><b><CountUp key={day} value={r.revenue.linepay || 0} /></b></div>
         {r.revenue.transfer > 0 && <div className="kpi"><span>轉帳</span><b><CountUp key={day} value={r.revenue.transfer} /></b></div>}
@@ -94,8 +105,35 @@ export default function Summary() {
         <div className="kpi"><span>銷售筆數</span><b><CountUp key={day} value={r.orderCount} money={false} /></b></div>
       </div>
 
+      {isAll && (
+        <div className="card">
+          <h4>每天營業額</h4>
+          <div className="table-wrap">
+            <table className="perday-table">
+              <thead><tr><th>日期</th><th className="num">營業額</th><th className="num">現金</th><th className="num">LINE Pay</th>
+                {r.revenue.transfer > 0 && <th className="num">轉帳</th>}{r.revenue.card > 0 && <th className="num">刷卡</th>}<th className="num">筆數</th></tr></thead>
+              <tbody>
+                {perDay.map((x) => (
+                  <tr key={x.d}>
+                    <td>{x.d.slice(5).replace('-', '/')}</td>
+                    <td className="num strong">{fmt(x.rev.total)}</td><td className="num">{fmt(x.rev.cash || 0)}</td><td className="num">{fmt(x.rev.linepay || 0)}</td>
+                    {r.revenue.transfer > 0 && <td className="num">{fmt(x.rev.transfer || 0)}</td>}{r.revenue.card > 0 && <td className="num">{fmt(x.rev.card || 0)}</td>}
+                    <td className="num">{x.n}</td>
+                  </tr>
+                ))}
+                <tr className="perday-total">
+                  <td>合計</td><td className="num">{fmt(r.revenue.total)}</td><td className="num">{fmt(r.revenue.cash || 0)}</td><td className="num">{fmt(r.revenue.linepay || 0)}</td>
+                  {r.revenue.transfer > 0 && <td className="num">{fmt(r.revenue.transfer)}</td>}{r.revenue.card > 0 && <td className="num">{fmt(r.revenue.card)}</td>}
+                  <td className="num">{r.orderCount}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="card">
-        <h4>每小時營業額</h4>
+        <h4>每小時營業額{isAll ? `（${eventOnlyDays(s.event).length} 天加總）` : ''}</h4>
         <BarChart key={'h' + day} data={hourly} />
       </div>
       </>}
@@ -118,7 +156,22 @@ export default function Summary() {
           {Object.entries(r.gifts.byTo).map(([k, v]) => <div key={k} className="row between muted"><span>　{k}</span><span>{v.count} 筆・{fmt(v.value)}</span></div>)}
           <div className="row between"><span>沖泡耗用</span><span>{r.brew.qty} 包</span></div>
           {Object.entries(r.promos).map(([k, n]) => <div key={k} className="row between"><span>滿額活動：{k}</span><span>{n} 份</span></div>)}
-          {s.settings.cashCount && (
+          {s.settings.cashCount && isAll && (
+            <>
+              <h4>零錢對帳（每天）</h4>
+              {perDay.filter((x) => x.opened || x.counted != null).map((x) => {
+                const df = x.counted == null ? null : x.counted - x.expected
+                return (
+                  <div key={x.d} className="row between">
+                    <span>{x.d.slice(5).replace('-', '/')}</span>
+                    <span className={df == null ? 'muted' : df === 0 ? 'pos' : 'neg'}>{df == null ? '尚未收攤點算' : df === 0 ? '✓ 相符' : `差 ${fmt(df)}`}</span>
+                  </div>
+                )
+              })}
+              {!perDay.some((x) => x.opened || x.counted != null) && <p className="muted small">還沒有點算紀錄</p>}
+            </>
+          )}
+          {s.settings.cashCount && !isAll && (
             <>
               <h4>零錢對帳</h4>
               <div className="row between"><span>應有現金</span><span>{fmt(exp.expected)}</span></div>
@@ -132,7 +185,7 @@ export default function Summary() {
       {show('hot') && <InView className="card">
         <div className="row between wrap">
           <h4>熱賣排行（前 10 名）</h4>
-          <span className="muted small">{scope === 'event' ? '整個展期' : day === today() ? '今天' : day.slice(5).replace('-', '/')}・依銷售數量</span>
+          <span className="muted small">{scope === 'event' ? '整個展期' : dayLabel}・依銷售數量</span>
         </div>
         <HotRank rows={rows} />
       </InView>}
@@ -140,10 +193,10 @@ export default function Summary() {
       {show('items') && <div className="card">
         <div className="row between wrap">
           <h4>各品項銷售數量</h4>
-          <div className="seg small-seg">
-            <button className={scope === 'day' ? 'on' : ''} onClick={() => setScope('day')}>{day === today() ? '今天' : day.slice(5).replace('-', '/')}</button>
+          {!isAll && <div className="seg small-seg">
+            <button className={scope === 'day' ? 'on' : ''} onClick={() => setScope('day')}>{dayLabel}</button>
             <button className={scope === 'event' ? 'on' : ''} onClick={() => setScope('event')}>整個展期</button>
-          </div>
+          </div>}
         </div>
         <div className="sticky-head">
           <table>

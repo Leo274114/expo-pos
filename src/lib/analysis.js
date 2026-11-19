@@ -13,6 +13,7 @@ export function hoursFor(event, day) {
 
 // 'YYYY-MM-DD' + 'HH:MM'（台灣時間）→ 毫秒
 export const tsAt = (day, hm) => Date.parse(`${day}T${hm}:00+08:00`)
+export const mdOf = (ts) => new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric' }).format(new Date(ts))
 export const hmOf = (ts) => new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(ts))
 
 // 重量文字 → 公克；看不懂回傳 null
@@ -63,7 +64,33 @@ export function groupOf(sku, product, optionLists = []) {
 
 // 產生某一天每個比較品項的累計曲線
 // 回傳 [{ key, name, category, unit, gramsOk, start, end, soldOutTs, pts: [[ts, 累計]], total, perHour }]
-export function buildSeries({ orders = [], skus = [], productById = {}, optionLists = [], day, open, close, soldOut = [], stockInit = {}, mode = 'grams', now = Date.now() }) {
+// 整個展期：把每天的營業時間接起來（晚上不營業的時間跳過）
+// segments：[{ day, open, close }]；回傳 { open, close, at(ts) }，at 把真實時間換成「營業時間軸」上的位置
+export function timeline(segments = []) {
+  const segs = [...segments].sort((a, b) => a.open - b.open)
+  const base = segs[0]?.open ?? 0
+  let acc = 0
+  const marks = segs.map((g) => { const m = { ...g, from: base + acc }; acc += Math.max(0, g.close - g.open); return m })
+  const at = (ts) => {
+    let last = base
+    for (const g of marks) {
+      if (ts < g.open) return g.from
+      if (ts <= g.close) return g.from + (ts - g.open)
+      last = g.from + (g.close - g.open)
+    }
+    return last
+  }
+  return { open: base, close: base + acc, at, segs: marks }
+}
+
+export function buildSeries({ orders = [], skus = [], productById = {}, optionLists = [], day, open, close, segments, soldOut = [], stockInit = {}, mode = 'grams', now = Date.now() }) {
+  // 單日＝一段；整個展期＝每天一段，接成一條營業時間軸
+  const segs = segments || [{ day, open, close }]
+  const tl = timeline(segs)
+  const days = new Set(segs.map((g) => g.day))
+  const multi = segs.length > 1
+  const realOpen = Math.min(...segs.map((g) => g.open)), realClose = Math.max(...segs.map((g) => g.close))
+
   const groups = {}
   const skuGroup = {}
   for (const k of skus) {
@@ -80,7 +107,7 @@ export function buildSeries({ orders = [], skus = [], productById = {}, optionLi
   // 銷售事件（只算銷售單，不含預購、贈與、沖泡；套裝與盒裝拆成組成品項）
   const events = {}
   for (const o of orders) {
-    if (o.type !== 'sale' || o.status === 'void' || o.day !== day) continue
+    if (o.type !== 'sale' || o.status === 'void' || !days.has(o.day)) continue
     for (const it of o.items || []) {
       if (it.pre) continue
       for (const [skuId, qty] of Object.entries(lineUnits(it))) {
@@ -94,30 +121,37 @@ export function buildSeries({ orders = [], skus = [], productById = {}, optionLi
   }
 
   const soldBy = {}
-  for (const x of soldOut) if (x.day === day) soldBy[x.skuId] = x.ts
-  const endCap = Math.min(close, Math.max(open, now))
+  for (const x of soldOut) if (days.has(x.day)) soldBy[x.skuId] = x.ts
+  const endCap = tl.at(Math.min(realClose, Math.max(realOpen, now)))
+  const inSeg = (t) => segs.some((g) => t > g.open && t < g.close)
   const out = []
   for (const G of Object.values(groups)) {
     if (mode === 'grams' && !G.gramsOk) continue
     const ev = (events[G.key] || []).sort((a, b) => a[0] - b[0])
-    // 開賣時間：營業時間內第一次啟用的時刻
-    const marks = [open]
-    for (const e of [G.product, ...G.skus]) for (const x of e?.activeLog || []) if (x.ts > open && x.ts < close) marks.push(x.ts)
+    // 開賣時間：營業時間內第一次啟用的時刻（每天開門也算一個檢查點）
+    const marks = segs.map((g) => g.open)
+    for (const e of [G.product, ...G.skus]) for (const x of e?.activeLog || []) if (inSeg(x.ts)) marks.push(x.ts)
     marks.sort((a, b) => a - b)
-    let start = marks.find((t) => activeAt(G, t))
-    if (start == null && ev.length) start = Math.max(open, Math.min(ev[0][0], close))
-    if (start == null) continue
+    let startReal = marks.find((t) => activeAt(G, t))
+    // 開關紀錄之前就有銷售（例：版本更新前開的、紀錄不完整）→ 以第一筆銷售為開賣時間
+    if (ev.length && (startReal == null || ev[0][0] < startReal)) startReal = ev[0][0]
+    if (startReal == null) continue
+    const start = tl.at(startReal)
     if (start > endCap && !ev.length) continue
     // 完售：有庫存的組合全部賣完才算
     const stocked = G.skus.filter((k) => !(k.components || []).length && (Number(stockInit[k.id]?.initial ?? stockInit[k.id]) || 0) > 0)
     const soldOutTs = stocked.length && stocked.every((k) => soldBy[k.id]) ? Math.max(...stocked.map((k) => soldBy[k.id])) : null
-    const end = soldOutTs ? Math.min(soldOutTs, close) : endCap
+    const end = soldOutTs ? Math.min(tl.at(soldOutTs), tl.close) : endCap
     let c = 0
     const pts = [[start, 0]]
-    for (const [t, v] of ev) { c += v; pts.push([Math.min(Math.max(t, start), Math.max(end, start)), c]) }
+    for (const [t, v] of ev) { c += v; pts.push([Math.min(Math.max(tl.at(t), start), Math.max(end, start)), c]) }
     pts.push([Math.max(end, start), c])
     const hrs = (Math.max(end, start) - start) / 3600000
-    out.push({ key: G.key, name: G.name, category: G.category, unit: G.unit, gramsOk: G.gramsOk, start, end: Math.max(end, start), soldOutTs, pts, total: c, perHour: hrs > 0.05 ? c / hrs : 0 })
+    out.push({
+      key: G.key, name: G.name, category: G.category, unit: G.unit, gramsOk: G.gramsOk, start, end: Math.max(end, start), startReal, soldOutTs,
+      soldOutText: soldOutTs ? (multi ? `${mdOf(soldOutTs)} ${hmOf(soldOutTs)}` : hmOf(soldOutTs)) : '',
+      pts, total: c, perHour: hrs > 0.05 ? c / hrs : 0
+    })
   }
   return out
 }
